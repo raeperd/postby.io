@@ -1,12 +1,12 @@
-# Astro Start
+# postby.io
 
-A modern, minimal SaaS landing page template built with Astro and Tailwind CSS. Perfect for launching your next project quickly and efficiently.
+A curation service for tech company engineering blog posts. Discover and explore officially published content from leading tech companies like Naver, Coupang, Line, and more.
 
 ## ✨ Features
 
+- **Curated Content** - Hand-picked engineering blog posts from top tech companies
 - **Fast** - Built with performance in mind using modern web technologies
-- **Reliable** - Tested and proven architecture for scalable applications
-- **Simple** - Clean, minimal design that's easy to customize and extend
+- **Simple** - Clean, minimal design focused on content discovery
 
 ## 🛠️ Tech Stack
 
