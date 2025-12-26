@@ -6,14 +6,10 @@ async function crawlPostList(rule: ParsingRule): Promise<string[]> {
   const discoveredUrls: string[] = []
   let currentUrl: string | undefined = rule.listUrl
   let pageNum = 1
+  const MAX_PAGES = 100
   
-  while (currentUrl) {
+  while (currentUrl && pageNum <= MAX_PAGES) {
     console.log(`Fetching list page ${pageNum}: ${currentUrl}`)
-    
-    if (pageNum > 1) {
-      console.log(`  Waiting 3 seconds...`)
-      await new Promise(resolve => setTimeout(resolve, 3000))
-    }
     
     const result = await fetchPage(currentUrl)
     const listResult = parsePostList(result.html, rule)
@@ -28,6 +24,13 @@ async function crawlPostList(rule: ParsingRule): Promise<string[]> {
     
     currentUrl = listResult.nextPageUrl
     pageNum++
+    
+    console.log(`  Waiting 3 seconds...`)
+    await new Promise(resolve => setTimeout(resolve, 3000))
+  }
+  
+  if (pageNum > MAX_PAGES) {
+    console.log(`  Reached max page limit (${MAX_PAGES})`)
   }
   
   return discoveredUrls
