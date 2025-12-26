@@ -3,11 +3,12 @@ import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
+import { z } from 'zod';
 
 export const posts = sqliteTable(
   'posts',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
+    id: text('id').primaryKey(), // Generated from URL hash
     url: text('url').notNull().unique(),
     company: text('company').notNull(),
     title: text('title').notNull(),
@@ -45,11 +46,12 @@ export const db = drizzle(client, { schema: { posts } });
 export const selectPostSchema = createSelectSchema(posts);
 
 export const insertPostSchema = createInsertSchema(posts, {
-  url: schema => schema.url('Must be a valid URL'),
-  title: schema => schema.min(1, 'Title is required').max(500, 'Title too long'),
-  content: schema => schema.min(1, 'Content is required'),
-  tags: schema => schema.default([]),
-  company: schema => schema.min(1, 'Company is required'),
+  id: z.string().min(1, 'ID is required'),
+  url: z.url({ message: 'Must be a valid URL' }),
+  title: z.string().min(1, 'Title is required').max(500, 'Title too long'),
+  content: z.string().min(1, 'Content is required'),
+  tags: z.array(z.string()).default([]),
+  company: z.string().min(1, 'Company is required'),
 });
 
 export type Post = typeof posts.$inferSelect;

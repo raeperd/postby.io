@@ -1,10 +1,10 @@
 export async function fetchPage(url: string): Promise<{ html: string; url: string; statusCode: number }> {
-  // TODO: Implement HTTP fetching using native fetch() API
-  console.log(`[FETCHER] fetchPage called for: ${url}`)
-  
+  const response = await fetch(url);
+  const html = await response.text();
+
   return {
-    html: '<html><body>Mock HTML content</body></html>',
-    url: url,
-    statusCode: 200
-  }
+    html,
+    url: response.url,
+    statusCode: response.status,
+  };
 }

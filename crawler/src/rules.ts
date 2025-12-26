@@ -1,16 +1,16 @@
 export interface ParsingRule {
-  name: string
-  listUrl: string
+  name: string;
+  listUrl: string;
   listSelectors: {
-    postLinks: string
-    nextPage?: string
-  }
+    postLinks: string;
+    nextPage?: string;
+  };
   contentSelectors: {
-    title: string
-    content: string
-    tags: string
-    publishedAt: string
-  }
+    title: string;
+    content: string;
+    tags: string;
+    publishedAt: string;
+  };
 }
 
 export const rules: Record<string, ParsingRule> = {
@@ -19,13 +19,13 @@ export const rules: Record<string, ParsingRule> = {
     listUrl: 'https://d2.naver.com/home',
     listSelectors: {
       postLinks: '.post-item a',
-      nextPage: '.pagination .next'
+      nextPage: '.pagination .next',
     },
     contentSelectors: {
       title: 'h1.post-title',
       content: '.post-content',
       tags: '.post-tags a',
-      publishedAt: 'time.published'
-    }
-  }
-}
+      publishedAt: 'time.published',
+    },
+  },
+};
