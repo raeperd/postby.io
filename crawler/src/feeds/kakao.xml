@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+    <channel>
+        <title><![CDATA[tech.kakao.com]]></title>
+        <description><![CDATA[카카오테크, 미래의 문턱을 낮추는 기술]]></description>
+        <link>https://tech.kakao.com</link>
+        <generator>RSS for Node</generator>
+        <lastBuildDate>Fri, 26 Dec 2025 17:00:19 GMT</lastBuildDate>
+        <atom:link href="https://tech.kakao.com/feed/" rel="self" type="application/rss+xml"/>
+        <item>
+            <title><![CDATA[초경량 클래식 형태소 분석기 개발기]]></title>
+            <description><![CDATA[안녕하세요, AI추천플랫폼팀의 제이입니다.
+카카오톡에서 특정 기능을 지원하기 위해 경량 형태소 분석기가 필요했습니다. 최근에는 딥러닝 기반의 정확도가 높은 형태소 분석 라이브러리가 많이 등장했지만, 모바일 환경에서는 단순히 정확도만으로 선택하기 어렵습니다. 실행 파일의 크기, 메모리 사용량, 그리고 사전 파일의 크기까지 함께 고려해야 하기 때문입니다. 특히 이 요소들은 모바일 애플리케이션의 용량과 성능에 직접적인 영향을 미칩니다.
+이러한 제약 조건을 만...]]></description>
+            <link>https://tech.kakao.com/posts/805</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/805</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[jay.id]]></dc:creator>
+            <pubDate>Sun, 21 Dec 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/media/4a69ffb1019b00001.png</thumbnail>
+        </item>
+        <item>
+            <title><![CDATA[더 똑똑하고 효율적인 Kanana-2 오픈소스 공개]]></title>
+            <description><![CDATA[Kanana-2: Agentic AI 구현에 최적화된 언어모델
+카카오가 자체 개발한 차세대 언어모델, Kanana-2를 오픈소스로 공개합니다. 이번 공개는 지난 2월 자체 언어모델 Kanana 확보 및 5월  고난이도 문제 해결에 특화된 Kanana-1.5를 선보인 이후, 성능과 효율을 획기적으로 개선한 최신 연구 성과입니다.
+카카오는 이번 Kanana-2를 통해 단순한 대화형 AI를 넘어, 사용자의 명령 맥락을 파악하고 능동적으로 동작하는 Agenti...]]></description>
+            <link>https://tech.kakao.com/posts/804</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/804</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[Kanana]]></dc:creator>
+            <pubDate>Thu, 18 Dec 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/media/307827a3019b00001.jpeg</thumbnail>
+        </item>
+        <item>
+            <title><![CDATA[MongoDB 8.0 업그레이드 해야하는 12가지 이유]]></title>
+            <description><![CDATA[들어가며
+데이터베이스를 운영하며 가장 중요하게 생각하는 가치는 안정성입니다.
+그래서 카카오에서는 새로운 MongoDB GA(General Availability) 버전이 공개되면 안정적인 운영을 위해 약 1년 간의 안정화 기간을 거쳐 충분히 검증된 시점에 업그레이드를 검토하고 있습니다. 그리고 현재 MongoDB 8.0 역시 출시된 지 약 1년이 지난 시점인데요.
+솔직히 말해 데이터베이스 업그레이드는 언제나 조심스러운 작업입니다.
+보통은 업그레이드 후 ...]]></description>
+            <link>https://tech.kakao.com/posts/803</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/803</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[andy.hj / philip.seo / ayla.c]]></dc:creator>
+            <pubDate>Tue, 16 Dec 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/media/2a8e1f0b019b00001.png</thumbnail>
+        </item>
+        <item>
+            <title><![CDATA[더욱 똑똑하게 답하며, 더욱 풍부한 감정표현을 향한 Kanana-o의 진화 과정]]></title>
+            <description><![CDATA[안녕하세요, 카카오의 AI 모델 개발을 담당하는 카나나(Kanana) 조직의 Edwin(강우영), James(이재명), Jessie(이지혜)입니다. 저희 팀에서는 사람처럼 보고, 듣고, 말하며 한국적 맥락을 깊이 있게 이해하는 멀티모달(Multimodal)  언어모델을 중점적으로 개발하고 있습니다. 멀티모달 모델은 텍스트, 이미지, 음성 등 두 가지 이상의 정보를 동시에 이해하고 처리하는 모델입니다.
+
+지난 5월, 저희 팀에서는 국내 최초로 통합 멀티모...]]></description>
+            <link>https://tech.kakao.com/posts/802</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/802</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[edwin.ai / james.e / jessie.e]]></dc:creator>
+            <pubDate>Thu, 11 Dec 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/media/0c7665b3019b00002.png</thumbnail>
+        </item>
+        <item>
+            <title><![CDATA[​한국어와 이미지를 한 번에, 카카오의 멀티모달 임베딩 모델 개발기]]></title>
+            <description><![CDATA["해변에서 노는 강아지 사진 찾아줘"라고 말하면 앨범에서 해당 사진만 찾아주고, 마음에 드는 제품을 보여주면 비슷한 상품을 추천해주는 서비스. 이런 기능은 어떻게 만들 수 있을까요?
+안녕하세요, 카카오의 AI 모델 연구, 개발을 담당하는 카나나(Kanana) 조직에서 멀티모달 임베딩 모델을 맡고 있는 Shawn(정성효), Hash(박상하)입니다. 저희 팀은 오디오, 이미지, 비디오 등 다양한 멀티모달 데이터를 이해하고, 특정 목적에 맞춰 높은 성능을 내...]]></description>
+            <link>https://tech.kakao.com/posts/801</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/801</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[shawn.hyo / hash.ai]]></dc:creator>
+            <pubDate>Thu, 11 Dec 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/media/06f24f90019b00001.png</thumbnail>
+        </item>
+        <item>
+            <title><![CDATA[AI TOP 100이 우리에게 남긴 것들]]></title>
+            <description><![CDATA[“AI가 개발자를 대체할까요?” 불과 1년 전만 해도 이 질문은 두려움 섞인 농담처럼 개발자들 사이를 떠돌았습니다. 하지만 지금, 우리에게 그 질문은 더 이상 유효하지 않습니다. 이제 우리가 던져야 할 질문은 이것입니다. “우리는 AI와 함께 어디까지, 얼마나 빨리 갈 수 있는가?”
+여기, 그 질문에 온몸으로 답한 기록들이 있습니다. 이번 'AI TOP 100 경진대회’를 준비하며 전례 없는 실험을 감행했습니다. 통상 몇 달이 걸릴 시스템 개발을 단 2...]]></description>
+            <link>https://tech.kakao.com/posts/799</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/799</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[robin.hwang]]></dc:creator>
+            <pubDate>Wed, 03 Dec 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/image/ed6f6910019a00001.png</thumbnail>
+        </item>
+        <item>
+            <title><![CDATA[YEYE가 지켜보고 있다–카카오의 공격 표면 관리 이야기]]></title>
+            <description><![CDATA[
+보호해야 할 대상이 있다면, 그 경계선은 언제나 공격자의 최우선 표적이 됩니다. 많은 공격자들은 웹, 네트워크 시스템 등 여러가지 표면을 탐색하며 약한 고리를 찾습니다.
+우리는 이것을 공격 표면(Attack Surface)이라고 부릅니다.
+
+공격 표면(Attack Surface)이란 외부에서 접근 가능한 모든 디지털 자산 — IP, 도메인·서브도메인, 오픈 포트, 웹 애플리케이션, S3 버킷, API 엔드포인트, 심지어 모바일 앱 스토어에 올라간 AP...]]></description>
+            <link>https://tech.kakao.com/posts/798</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/798</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[pluto.h / lina.02 / hade.cby234]]></dc:creator>
+            <pubDate>Sun, 30 Nov 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/image/d7bc00ea019a00001.jpeg</thumbnail>
+        </item>
+        <item>
+            <title><![CDATA[[AI_TOP_100] 문제 출제 후기 – 기술이 아닌, 사람을 묻다.]]></title>
+            <description><![CDATA[들어가며
+매일 아침 새로운 AI 모델이 발표되고, 그 성능을 증명하는 수많은 벤치마크가 쏟아집니다. 우리는 이제 어떤 모델이 소수점 단위로 더 똑똑한지 알 수 있는 시대에 살고 있습니다.
+하지만 정작 그 도구를 손에 쥔 '사람의 능력’은 어떻게 평가해야 할까요?
+물론 'AI 리터러시’라는 용어가 있습니다. 하지만 이 단어는 시대가 요구하는 역량을 통칭하는 포괄적인 개념일 뿐, 구체적으로 개인이 복잡한 문제를 어떻게 해결하고 가치를 창출하는지를 측정하는 ...]]></description>
+            <link>https://tech.kakao.com/posts/797</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/797</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[benedict.lee / greg.prk / leo.haam / ras.lee / yanoo.kim]]></dc:creator>
+            <pubDate>Sun, 23 Nov 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/image/b48ca796019a00001.jpeg</thumbnail>
+        </item>
+        <item>
+            <title><![CDATA[우리가 진짜 문제를 풀고 있었을까? — POPM 과정이 남긴 질문]]></title>
+            <description><![CDATA[익숙한 개념을 ‘다르게 바라보게 된’ 교육
+POPM 교육은 새로운 지식을 전달하기보다는, 우리가 이미 알고 있던 개념들을 구조적으로 정리하고 현실에서 어떻게 쓰이는지 연결해보는 시간이었습니다.
+교육은 총 7기수에 걸쳐 진행되었고, 매 주차 과정이 끝날 때마다 피드백을 받았습니다. 다행히 본 과정이 더 나은 과정으로 거듭나서 다른 동료들에게도 선한 영향을 끼치길 바라는 크루들이 많아 귀한 피드백을 많이 얻을 수 있었습니다. 게다가 세션을 반복해서 운영하며...]]></description>
+            <link>https://tech.kakao.com/posts/796</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/796</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[bella.coach]]></dc:creator>
+            <pubDate>Wed, 19 Nov 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/image/9ffbbb3f019a00001.jpg</thumbnail>
+        </item>
+        <item>
+            <title><![CDATA[POPM 과정은 어떻게 하나의 ‘제품’이 되었나]]></title>
+            <description><![CDATA[제품은 혼자 만들 수 없습니다. PO/PM은 수많은 결정을 내려야 하지만, 명확한 구조와 공통된 언어 없이 혼자 고민하고 실행하기에는 한계가 있습니다. 그래서 우리는 함께 문제를 이해하고, 같은 언어로 실행을 설계할 수 있는 ‘구조적 실험’을 시작했습니다. 바로 POPM 교육입니다.
+혼자서 제품을 만들 수 없듯, 교육도 혼자 설계할 수 없습니다. POPM 교육은 처음부터 '구조’와 '반복 실험’을 통해 성장해온 제품이기도 합니다.
+
+1. POPM 교육은...]]></description>
+            <link>https://tech.kakao.com/posts/795</link>
+            <guid isPermaLink="false">https://tech.kakao.com/posts/795</guid>
+            <category><![CDATA[blog]]></category>
+            <dc:creator><![CDATA[bella.coach]]></dc:creator>
+            <pubDate>Wed, 19 Nov 2025 15:00:00 GMT</pubDate>
+            <thumbnail>https://t1.kakaocdn.net/kakao_tech/image/9f9a35b3019a00001.jpg</thumbnail>
+        </item>
+    </channel>
+</rss>

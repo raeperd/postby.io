@@ -1,0 +1,3249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>D2 Blog</title>
+  <link rel="alternate" href="https://d2.naver.com" />
+  <id>https://d2.naver.com/blog.atom</id>
+  <icon>https://d2.naver.com/favicon.ico</icon>
+  <updated>2025-12-17T08:27:12Z</updated>
+  <entry>
+    <title>비용, 성능, 안정성을 목표로 한 지능형 로그 파이프라인 도입</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/0004394" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/0004394</id>
+    <updated>2025-12-17T17:34:06Z</updated>
+    <content type="html">&lt;p&gt;Logiss는 AIDA(Advanced Interface for Data &amp;amp; AI)라는 네이버 사내 통합 데이터 플랫폼의 일부로, 로그 수집과 실시간 검색을 통해 문제를 추적하고 데이터를 분석하도록 지원합니다. 또한 Cuve와 CQuery라는 대용량 데이터 저장소 및 분석 설루션과 데이터를 연동합니다.&lt;/p&gt;
+
+&lt;p&gt;이 글에서는 로그 파이프라인을 운영하면서 겪은 문제점과 지능형 로그 파이프라인을 도입해 이를 해결한 과정을 공유합니다.&lt;/p&gt;
+
+&lt;p&gt;관련 발표는 &lt;strong&gt;팀네이버 컨퍼런스 DAN25&lt;/strong&gt; '&lt;a href="https://dan.naver.com/25/sessions/693"&gt;하루 수백억 건을 처리하는 똑똑한 로그 파이프라인 만들기: 비용·성능·안정성 삼박자&lt;/a&gt;'에서도 살펴보실 수 있습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;로그 파이프라인의 역할&lt;/h2&gt;
+
+&lt;p&gt;로그 파이프라인을 설명하기 전에 먼저 AIDA의 주요 컴포넌트 구성을 간단히 알아보겠습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/2.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;AIDA의 주요 컴포넌트 구성&lt;/span&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;AIDA Project&lt;/strong&gt;: 각 컴포넌트의 리소스 사용 관리, 데이터 권한 관리 담당&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Cuve&lt;/strong&gt;: HBase, Kafka 기반의 검색에 필요한 모든 문서를 중심으로 데이터 저장 및 유통
+&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Hades&lt;/strong&gt;: 검색 결과에서 문서 노출 여부 제어&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Deathnote&lt;/strong&gt;: 서버 실시간 문서 삭제&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;C3&lt;/strong&gt;: Apache Hadoop(+보안 패치, C3 패치) 기반의 멀티테넌트 데이터 시스템. Hadoop 모듈인 HDFS, YARN, MapReduce를 비롯해 ZooKeeper, Oozie, Spark, Hive 사용 지원&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;CQuery&lt;/strong&gt;: C3의 HDFS에 테이블 형식으로 데이터를 저장하고 SQL 분석 지원&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Logiss&lt;/strong&gt;: 로그 수집과 실시간 검색을 제공하며 Cuve, CQuery에 데이터 연동 지원&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;AiSuite&lt;/strong&gt;: GPU 인프라와 Kubeflow를 지원하고 C3의 secure HDFS, Ceph, localPath, JuiceFS 등 용도에 맞는 스토리지 지원&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Logiss는 OpenSearch와 OpenSearch Dashboards를 이용해 실시간 인덱싱과 검색 기능을 제공합니다. 또한 Logstash, Kafka, Storm, Java 애플리케이션으로 구성한 파이프라인을 통해 OpenSearch와 랜딩 존(landing zone)에 데이터를 실시간 전송합니다. 랜딩 존은 Cuve, CQuery 등에서 운영합니다.&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;랜딩 존: 실시간 로그(단순 원본 데이터)를 SQL로 활용하기 전, 단기 저장을 목적으로 운영하는 저장 공간&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/3.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;다양한 컴포넌트로 구성된 Logiss의 파이프라인 아키텍처&lt;/span&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;FEL(FrontEnd Logstash)&lt;/strong&gt;: 사용자의 로그를 다양한 프로토콜(TCP, Beats, HTTP 등)로 수신해 Front Kafka에 적재&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Traffic-Controller&lt;/strong&gt;: Storm의 두 가지 토폴로지
+&lt;ul&gt;&lt;li&gt;&lt;strong&gt;main 토폴로지&lt;/strong&gt;: Front Kafka에 적재된 데이터를 지정된 Post Kafka의 실시간 처리 토픽으로 전달. 데이터마다 설정한 최대 처리 속도를 초과하지 않도록 하며, 초과 전송 분은 Post Kafka의 후처리를 위한 별도 토픽에 저장.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;retry 토폴로지&lt;/strong&gt;: 후처리 데이터를 다시 처리해 Post Kafka의 실시간 처리 토픽으로 전송&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;BEL(BackEnd Logstash)&lt;/strong&gt;: Post Kafka에서 OpenSearch로 인덱싱할 토픽들의 데이터를 소비해 OpenSearch로 벌크 인덱싱 요청&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Kafcuve&lt;/strong&gt;: Java 앱으로, Post Kafka에서 랜딩 존으로 전송할 토픽을 소비해 랜딩 존으로 데이터 전송&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;LAP(Logiss Async Processor)&lt;/strong&gt;: Jenkins 배치(batch) 잡을 실행하는 주체. 전송 속도를 초과해 Post Kafka에 후처리 데이터로 쌓인 토픽의 데이터를 소비하고, 다시 정해진 속도로 Traffic-Controller의 retry 토폴로지로 데이터 전송.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Traffic-Controller는 로그 데이터마다 설정된 최대 전송 속도를 초과하지 않도록 뒷단으로 데이터를 흘려보냅니다. 데이터마다 전송 속도를 설정하는 이유는 Logiss가 공용 플랫폼이므로 뒷단의 부하가 어느 한 데이터에 점유되는 것을 막고, 과도한 트래픽으로부터 뒷단을 보호하기 위해서입니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;기존 로그 파이프라인의 문제점&lt;/h2&gt;
+
+&lt;h3 id="1trafficcontroller"&gt;1. 단일 토폴로지로 운영되던 Traffic-Controller&lt;/h3&gt;
+
+&lt;p&gt;트래픽 제어를 담당하는 Traffic-Controller의 main 토폴로지는 단일 토폴로지로 구성되어 있었습니다. Storm에 swap 기능이 없어, 배포하려면 실행 중인 토폴로지를 중단하고 다시 제출해야만 했습니다(참고: &lt;a href="https://storm.apache.org/releases/2.8.2/Running-topologies-on-a-production-cluster.html"&gt;Updating a running topology&lt;/a&gt;).&lt;/p&gt;
+
+&lt;p&gt;단일 토폴로지 구조에서는 무중단 배포가 불가능했고, 이로 인해 배포 시 약 3~8분 정도 파이프라인 지연이 발생했습니다.&lt;/p&gt;
+
+&lt;p&gt;다음은 서로 다른 2개의 클러스터에 단일 토폴로지로 구성된 Traffic-Controller를 배포할 때 데이터를 소비하는 Front Kafka의 랙(lag) 그래프입니다. 평상시에는 랙이 거의 발생하지 않지만, 토폴로지를 재기동하는 동안에는 데이터 처리가 멈추어 처리해야 할 데이터가 쌓이는 모습을 확인할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/4.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;서로 다른 2개의 클러스터에 단일 토폴로지로 구성된 Traffic-Controller를 배포할 때 발생한 Front Kafka 랙&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;실시간 파이프라인에 지연이 발생하기 때문에 항상 배포 전에는 Logiss 사용자에게 별도로 공지해야 했고, 사용자 영향이 적고 트래픽이 적은 새벽 시간에만 배포할 수 있었습니다. 예정된 상황에서는 미리 공지하고 작업할 수 있지만, 긴급 배포가 필요한 경우에는 지연을 피할 수 없다는 한계도 있었습니다.&lt;/p&gt;
+
+&lt;p&gt;또한 점진적 배포가 불가능하여, 실제 서비스 환경에서만 드러나는 부작용은 배포가 완전히 끝난 후에야 확인할 수 있었습니다.&lt;/p&gt;
+
+&lt;h3 id="2"&gt;2. 낮과 새벽의 트래픽 차이&lt;/h3&gt;
+
+&lt;p&gt;Logiss는 네이버 전사 로그를 수집하기 때문에 일반적으로 낮 시간에 트래픽이 많고 새벽 시간에 적은 유입 패턴을 보입니다.&lt;/p&gt;
+
+&lt;p&gt;다음은 운영 중인 클러스터 중 하나의 7일치 Front Kafka 트래픽 유입 패턴입니다. 최대 트래픽이 최소 트래픽의 약 5배인 것을 확인할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/5.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;특정 클러스터의 7일치 Front Kafka 트래픽 유입 패턴(초당 로그 개수, 초당 로그 크기를 임의 단위로 표시)&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;Logiss의 파이프라인은 물리 장비(PM)로 구성되어 있고, 실시간 트래픽 처리가 목표입니다. 따라서 낮 시간에 집중된 피크(peak) 트래픽을 여유 있게 처리할 수 있도록 클러스터 규모를 산정해야 하며, 이 기준에 따라 머신 리소스를 다소 높게 투입하여 운영해야 했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/6.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;특정 클러스터의 7일치 Post Kafka 디스크 사용량, OpenSearch CPU 사용량(임의 단위로 표시)&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;이처럼 낮 시간에 트래픽이 집중되는 패턴 때문에 트래픽이 적은 새벽 시간대에는 머신 자원을 충분히 활용하지 못하는 비효율이 발생했습니다.&lt;/p&gt;
+
+&lt;h3 id="3"&gt;3. 모든 로그의 공평한 처리&lt;/h3&gt;
+
+&lt;p&gt;Front Kafka는 단일 토픽으로 운영되고 있어 급작스러운 트래픽 유입이나 장비 이슈가 발생하면 트래픽 처리 지연이 발생할 수 있습니다. 이때 로그의 중요도와 상관없이 데이터마다 설정된 최대 처리 속도로 처리되었습니다.&lt;/p&gt;
+
+&lt;p&gt;급작스러운 트래픽 유입으로 지연이 발생하면, 지연된 데이터에는 실시간으로 빠르게 처리되어야 하는 사업·서비스 핵심 로그와 상대적으로 중요도가 낮아 천천히 처리해도 되는 로그가 함께 섞여 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/7.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;트래픽 지연이 발생했을 때의 Front Kafka 랙&lt;/span&gt;&lt;/p&gt;
+
+&lt;h3 id="4"&gt;4. 장기 저장소와 실시간 검색을 위한 저장소에 모두 전달&lt;/h3&gt;
+
+&lt;p&gt;Logiss는 데이터의 목적이나 성격에 따라 OpenSearch에만 저장하거나, 랜딩 존에만 저장하거나, 양쪽 모두에 저장합니다. 특히 양쪽 모두 저장하도록 설정된 데이터 중에는 전체 트래픽을 저장하는 대신 일부 샘플링만으로도 충분히 유의미한 데이터를 얻을 수 있는 경우도 있었습니다.&lt;/p&gt;
+
+&lt;p&gt;하지만 전달받은 트래픽을 100% 저장하는 것이 기본 원칙이었기 때문에, 모든 트래픽을 저장할 필요가 없는 경우에도 저장소를 비효율적으로 사용했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/8.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;데이터 A가 장기 저장소인 랜딩 존, 실시간 검색을 위한 저장소 OpenSearch 양쪽에 저장될 때 수신한 데이터를 100% 저장&lt;/span&gt;&lt;/p&gt;
+
+&lt;h3 id=""&gt;문제점 정리&lt;/h3&gt;
+
+&lt;ol&gt;
+&lt;li&gt;단일 토폴로지로 운영되던 Traffic-Controller의 main 토폴로지 → 무중단, 점진적 배포 불가  &lt;/li&gt;
+&lt;li&gt;낮과 새벽의 트래픽 차이 → 낮 시간 트래픽을 기준으로 산정된 다소 과한 장비 리소스  &lt;/li&gt;
+&lt;li&gt;모든 로그의 공평한 처리 → 처리 지연 등 비상시, 중요한 로그와 덜 중요한 로그 모두 같이 지연  &lt;/li&gt;
+&lt;li&gt;장기 저장소와 실시간 검색을 위한 저장소에 모두 전달 → 비효율적인 저장소 사용&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=""&gt;해결 방법&lt;/h2&gt;
+
+&lt;h3 id="stormkafkaspout"&gt;Storm Kafka spout의 변경 및 멀티 토폴로지 도입&lt;/h3&gt;
+
+&lt;p&gt;storm-kafka-client(spout)는 1.x에서 2.x로 버전이 변경될 때, KafkaConsumer.subscribe API 호출을 제거하고 assign 방식을 채택했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;subscribe&lt;/strong&gt;: 소비할 파티션의 결정(할당)을 Kafka 브로커에게 맡기는 방식&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;assign&lt;/strong&gt;: 소비할 파티션의 결정을 KafkaConsumer(spout)가 직접 결정하는 방식&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;2.x에서 subscribe API 호출을 제거하고 assign 방식을 채택한 이유(subscribe API의 단점)는 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/9.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;storm-kafka-client에서 주장한 subscribe API의 단점(관련 이슈: &lt;a href="https://github.com/apache/storm/issues/6324"&gt;[STORM-2542] Deprecate storm-kafka-client KafkaConsumer.subscribe API subscriptions on 1.x and remove them as options in 2.x&lt;/a&gt;)&lt;/span&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;당시 cooperative sticky, sticky 등 고도화된 파티션 할당 전략이 없어, 재할당 과정 중 전체 spout의 소비가 멈춤&lt;/li&gt;
+&lt;li&gt;spout이 어떤 파티션을 처리할지 예측할 수 없음&lt;/li&gt;
+&lt;li&gt;spout이 하나의 executor에서 여러 task와 함께 실행되거나, 하나의 스레드에 여러 KafkaConsumer가 있는 경우 시스템이 멈추거나 이상 동작&lt;/li&gt;
+&lt;li&gt;executor crash가 발생하면 전체 파티션이 재할당되어 필요 이상의 중복이 발생하고, 처리하던 파티션에 커밋할 수 없음&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;하지만 assign API 채택은 다음과 같은 이유로 Traffic-Controller에 큰 이점이 없었습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Kafka에 고도화된 파티션 할당 전략 도입(파티션 리밸런스 시간 단축 및 최소화로 중복 최소화 가능)&lt;/li&gt;
+&lt;li&gt;Traffic-Controller의 spout은 어떤 파티션을 처리할지 예측할 필요가 없음&lt;/li&gt;
+&lt;li&gt;Traffic-Controller의 spout은 Kafka로부터 레코드를 소비하고 바로 다음 bolt로 넘겨주는 작업만 담당했으며, spout 하나에 하나의 KafkaConsumer로 동작&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;따라서 assign 방식이 적용된 storm-kafka-client 2.x 버전을 사용하는 Traffic-Controller에는 다음과 같은 문제점만 있었습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;토폴로지 ID만 바꾸어서 여러 개 띄울 경우, 토폴로지 개수만큼 파티션 중복 소비와 처리 발생&lt;/li&gt;
+&lt;li&gt;브로커가 파티션 할당을 담당하지 않기 때문에 파티션 할당 전략을 사용할 수 없음&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;이러한 assign 방식의 문제점 때문에 다시 subscribe 방식으로 돌아가기 위한 방법을 고민했습니다.&lt;/p&gt;
+
+&lt;h4 id="kafkaconsumersubscribestormkafkaclient"&gt;KafkaConsumer.subscribe 방식 적용을 위한 storm-kafka-client 다운그레이드 시도&lt;/h4&gt;
+
+&lt;p&gt;멀티 토폴로지 도입을 위해 KafkaConsumer.assign을 subscribe로 변경하고자 시도한 첫 번째 방법은 storm-kafka-client를 2.x에서 1.1.0으로 다운그레이드하는 것이었습니다.&lt;/p&gt;
+
+&lt;p&gt;멀티 토폴로지를 구성해도 파티션 중복 소비나 처리는 발생하지 않았지만, 장애 테스트 시 중단 시간이 매우 긴 것(약 6분)을 확인했습니다. 따라서 다운그레이드는 합리적인 선택이 아니라고 판단했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/10.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;storm-kafka-client 1.1.0(subscribe API)을 사용하면서 멀티 토폴로지를 구성한 후, supervisor 다운 시 발생한 Front Kafka 랙(위)과 Traffic-Controller의 소비(아래)&lt;/span&gt;&lt;/p&gt;
+
+&lt;h4 id="stormkafkaclientkafkaconsumerassignsubscribe"&gt;최신의 storm-kafka-client에서 KafkaConsumer.assign → subscribe 변경&lt;/h4&gt;
+
+&lt;p&gt;그래서 최신 storm-kafka-client에서 assign API를 subscribe로 변경했습니다. Storm 2.3.0에서 변경한 사항은 다음과 같습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-diff"&gt;diff --git external/storm-kafka-client/src/main/java/org/apache/storm/kafka/spout/KafkaSpout.java external/storm-kafka-client/src/main/java/org/apache/storm/kafka/spout/KafkaSpout.java
+index 391aeccb6..d8b8ab0c9 100644
+--- external/storm-kafka-client/src/main/java/org/apache/storm/kafka/spout/KafkaSpout.java
++++ external/storm-kafka-client/src/main/java/org/apache/storm/kafka/spout/KafkaSpout.java
+@@ -325,6 +325,10 @@ public class KafkaSpout&amp;lt;K, V&amp;gt; extends BaseRichSpout {
+         final int maxUncommittedOffsets = kafkaSpoutConfig.getMaxUncommittedOffsets();
+         for (TopicPartition tp : assignment) {
+             OffsetManager offsetManager = offsetManagers.get(tp);
++            if (offsetManager == null) {
++                //This partition is not assigned to this spout
++                continue;
++            }
+             int numUncommittedOffsets = offsetManager.getNumUncommittedOffsets();
+             if (numUncommittedOffsets &amp;lt; maxUncommittedOffsets) {
+                 //Allow poll if the partition is not at the maxUncommittedOffsets limit
+@@ -460,6 +464,9 @@ public class KafkaSpout&amp;lt;K, V&amp;gt; extends BaseRichSpout {
+                             LOG.trace("Emitted tuple [{}] for record [{}]", tuple, record);
+                         }
+                     } else {
++                        if (!offsetManagers.containsKey(tp)) {
++                            return false;
++                        }
+                         emitted.add(msgId);
+                         offsetManagers.get(tp).addToEmitMsgs(msgId.offset());
+                         if (isScheduled) {  // Was scheduled for retry and re-emitted, so remove from schedule.
+@@ -620,19 +627,14 @@ public class KafkaSpout&amp;lt;K, V&amp;gt; extends BaseRichSpout {
+     @Override
+     public void activate() {
+         try {
+-            refreshAssignment();
++            consumer.subscribe(Collections.singletonList(getTopicsString()), rebalanceListener);
+         } catch (InterruptException e) {
+             throwKafkaConsumerInterruptedException();
+         }
+     }
+
+     private void refreshAssignment() {
+-        Set&amp;lt;TopicPartition&amp;gt; allPartitions = kafkaSpoutConfig.getTopicFilter().getAllSubscribedPartitions(consumer);
+-        List&amp;lt;TopicPartition&amp;gt; allPartitionsSorted = new ArrayList&amp;lt;&amp;gt;(allPartitions);
+-        Collections.sort(allPartitionsSorted, TopicPartitionComparator.INSTANCE);
+-        Set&amp;lt;TopicPartition&amp;gt; assignedPartitions = kafkaSpoutConfig.getTopicPartitioner()
+-            .getPartitionsForThisTask(allPartitionsSorted, context);
+-        topicAssigner.assignPartitions(consumer, assignedPartitions, rebalanceListener);
++        topicAssigner.assignPartitions(consumer);
+     }
+
+     @Override
+diff --git external/storm-kafka-client/src/main/java/org/apache/storm/kafka/spout/subscription/TopicAssigner.java external/storm-kafka-client/src/main/java/org/apache/storm/kafka/spout/subscription/TopicAssigner.java
+index 300adecec..2942c8a20 100644
+--- external/storm-kafka-client/src/main/java/org/apache/storm/kafka/spout/subscription/TopicAssigner.java
++++ external/storm-kafka-client/src/main/java/org/apache/storm/kafka/spout/subscription/TopicAssigner.java
+@@ -34,17 +34,10 @@ public class TopicAssigner implements Serializable {
+      * @param &amp;lt;K&amp;gt; The consumer key type
+      * @param &amp;lt;V&amp;gt; The consumer value type
+      * @param consumer The Kafka consumer to assign partitions to
+-     * @param newAssignment The partitions to assign.
+-     * @param listener The rebalance listener to call back on when the assignment changes
+      */
+-    public &amp;lt;K, V&amp;gt; void assignPartitions(Consumer&amp;lt;K, V&amp;gt; consumer, Set&amp;lt;TopicPartition&amp;gt; newAssignment,
+-        ConsumerRebalanceListener listener) {
+-        Set&amp;lt;TopicPartition&amp;gt; currentAssignment = consumer.assignment();
+-        if (!newAssignment.equals(currentAssignment)) {
+-            listener.onPartitionsRevoked(currentAssignment);
+-            consumer.assign(newAssignment);
+-            listener.onPartitionsAssigned(newAssignment);
+-        }
++    public &amp;lt;K, V&amp;gt; void assignPartitions(Consumer&amp;lt;K, V&amp;gt; consumer) {
++        if (consumer.assignment().isEmpty())
++            consumer.poll(0);
+     }
+
+ }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;또한 멀티 토폴로지를 적용했을 때 spout, bolt 등의 task 할당이 장비마다 고르게 일어날 수 있도록 커스텀 스케줄러를 작성했습니다.&lt;/p&gt;
+
+&lt;p&gt;Storm에서 기본으로 제공하는 스케줄러들만으로는 supervisor별로 원하는 상태의 task 구성을 만들기 어려웠습니다. 다음은 기본 스케줄러를 이용해 spout 1개, parser bolt 3개, throttle bolt 2개, kafka bolt 3개로 구성된 main 토폴로지를 6개 배포했을 때 task가 supervisor별 slot에 어떻게 할당되는지 가시화한 이미지입니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/11.gif" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;spout 1개, parser bolt 3개, throttle bolt 2개, kafka bolt 3개로 구성된 main 토폴로지를 기본 스케줄러로 6개 배포했을 때 slot별 task 할당 과정&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;기본 스케줄러를 사용하면 최악의 경우 특정 spout, bolt task만으로 구성된 supervisor가 존재할 수 있습니다. 다음은 기본 스케줄러를 이용해 spout 1개, parser bolt 2개, throttle bolt 1개, kafka bolt 1개로 구성된 main 토폴로지를 10개 배포했을 때 task가 supervisor별 slot에 할당된 예입니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/12.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;spout 1개, parser bolt 2개, throttle bolt 1개, kafka bolt 1개로 구성된 main 토폴로지를 기본 스케줄러로 10개 배포했을 때 slot별 task 할당 할당 결과&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;supervisor2, 3의 모든 slot에는 parser bolt만 할당되었습니다. 이렇게 되면 parser bolt는 상대적으로 리소스를 많이 사용하기 때문에 supervisor2, 3에 부하가 집중되고, 전체 처리 병목이 두 장비에서 발생할 수 있습니다. 리소스를 상대적으로 덜 소비하는 spout과 bolt로 구성된 장비는 여유로운데도 말이죠.&lt;/p&gt;
+
+&lt;p&gt;따라서 spout과 bolt를 기계적으로 할당하는 기본 방식을 사용할 수 없었고, supervisor별로 이미 할당된 task를 고려하여 지능적으로 할당해야 했습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;커스텀 스케줄러 개발&lt;/h4&gt;
+
+&lt;p&gt;커스텀 스케줄러는 장비별로 특정 bolt, spout이 가장 적게 할당된 supervisor를 찾아 할당하는 방식으로 구현했습니다.&lt;/p&gt;
+
+&lt;p&gt;다음은 스케줄러의 핵심 로직입니다. 컴포넌트(Front Kafka spout, throttle bolt 등)가 가장 적게 할당된 supervisor slot을 찾고, 동일한 경우 slot이 가장 여유로운(task가 가장 적은) 노드의 slot을 선택합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;private String findBestSupervisor(Map&amp;lt;String, Map&amp;lt;String, Integer&amp;gt;&amp;gt; supervisorComponentCounts,
+    Map&amp;lt;String, List&amp;lt;WorkerSlot&amp;gt;&amp;gt; availableSlotsBySupervisor, String component) {
+    return availableSlotsBySupervisor.entrySet().stream()
+        .filter(e -&amp;gt; !e.getValue().isEmpty()) // slot이 있는 supervisor만 대상
+        .min(Comparator.comparingInt((Map.Entry&amp;lt;String, List&amp;lt;WorkerSlot&amp;gt;&amp;gt; e) -&amp;gt;
+                supervisorComponentCounts.getOrDefault(e.getKey(), Collections.emptyMap())
+                    .getOrDefault(component, 0)) // 1순위: 해당 컴포넌트 개수
+            .thenComparingInt(e -&amp;gt;
+                supervisorComponentCounts.getOrDefault(e.getKey(), Collections.emptyMap())
+                    .values().stream().mapToInt(Integer::intValue).sum() // 2순위: 전체 task 수
+            )
+        )
+        .map(Map.Entry::getKey)
+        .orElse(null);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;다음은 커스텀 스케줄러를 이용해 spout 1개, parser bolt 2개, throttle bolt 1개, kafka bolt 1개로 구성된 main 토폴로지를 10개 배포했을 때 task가 supervisor별 slot에 어떻게 할당되는지 가시화한 이미지입니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/13.gif" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;spout 1개, parser bolt 2개, throttle bolt 1개, kafka bolt 1개로 구성된 main 토폴로지를 커스텀 스케줄러로 10개 배포했을 때 slot별 task 할당 과정&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;10개의 토폴로지가 모두 할당된 결과를 보면 각 장비별 bolt, spout의 개수가 최대한 같게 할당된 것을 확인할 수 있습니다. 각 supervisor에 2개의 throttle bolt가 할당되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/14.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;spout 1개, parser bolt 2개, throttle bolt 1개, kafka bolt 1개로 구성된 main 토폴로지를 커스텀 스케줄러로 10개 배포했을 때 slot별 task 할당 결과&lt;/span&gt;&lt;/p&gt;
+
+&lt;h4 id="subscribeapi"&gt;subscribe API로 변경 + 커스텀 스케줄러가 적용된 멀티 토폴로지에서 다양한 장애 테스트 진행&lt;/h4&gt;
+
+&lt;p&gt;멀티 토폴로지에 커스텀 스케줄러를 적용한 후, 기존 단일 토폴로지 대비 다양한 상황에서 지연이나 중복의 정도를 비교해 보기 위해 장애 테스트를 진행했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;supervisor 장비 다운을 모사하는 supervisor 중단&lt;/li&gt;
+&lt;li&gt;배포 상황에서 발생하는 topology kill&lt;/li&gt;
+&lt;li&gt;executor crash를 모사하는 bolt, spout executor kill&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;단일 토폴로지(assign)와 멀티 토폴로지(subscribe with range assignor)의 장애 테스트 결과를 항목별로 비교하면 다음과 같습니다.&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;항목&lt;/th&gt;
+      &lt;th&gt;단일 토폴로지 + assign&lt;/th&gt;
+      &lt;th&gt;멀티 토폴로지 + subscribe(range)&lt;/th&gt;
+      &lt;th&gt;멀티 토폴로지 + subscribe(range)의 특징&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;span style="color:red;"&gt;supervisor 중단&lt;/span&gt;&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(75~115초)&lt;br/&gt;약 45초 데이터에 대해 11% 중복 처리&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(30~90초)&lt;br/&gt;약 45초 데이터에 대해 36% 중복 처리&lt;/td&gt;
+      &lt;td&gt;&lt;strong&gt;지연이 다소 줄었으나,&lt;/strong&gt;&lt;br/&gt;&lt;strong&gt;중복 처리 양이 더 많아짐&lt;/strong&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;span style="color:green;"&gt;topology kill&lt;/span&gt;&lt;/td&gt;
+      &lt;td&gt;전체 파티션 처리 중단&lt;/td&gt;
+      &lt;td&gt;일부 파티션 지연(30초)&lt;/td&gt;
+      &lt;td&gt;전체 파티션의 처리가 멈추지는 않게 됨&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;span style="color:blue;"&gt;bolt executor kill&lt;/span&gt;&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(60초)&lt;br/&gt;약 5초 데이터에 대해 0.4% 중복 처리&lt;/td&gt;
+      &lt;td&gt;일부 파티션 지연(30~60초)&lt;br/&gt;약 10초 데이터에 대해 0.4% 중복 처리&lt;/td&gt;
+      &lt;td&gt;단일 토폴로지 대비 큰 차이 없음&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;span style="color:blue;"&gt;spout executor kill&lt;/span&gt;&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(60초)&lt;br/&gt;약 5초 데이터에 대해 3% 중복 처리&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(30~90초)&lt;br/&gt;약 5초 데이터에 대해 3% 중복 처리&lt;/td&gt;
+      &lt;td&gt;단일 토폴로지 대비 큰 차이 없음&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;topology, spout executor, bolt executor kill의 세 가지 테스트에서는 일부 파티션의 처리만 지연되고, 중복 처리 양은 단일 토폴로지와 비슷하다는 큰 이점이 있었습니다. 하지만 평상시에도 흔하게 일어날 수 있는 장비 다운 등의 상황과 비슷한 supervisor 중단 테스트에서는 중복 처리가 단일 토폴로지보다 많은 것을 확인했습니다.&lt;/p&gt;
+
+&lt;p&gt;이렇게 다량의 데이터가 중복 처리되더라도, 실제 주요 로그의 경우에는 로그마다 고유 키를 부여하고, 이를 활용해서 랜딩 존 내부에서 중복 제거(deduplication) 작업이 수행되어 큰 문제가 되지는 않습니다. 그래도 OpenSearch에서의 중복이나 랜딩 존 내부의 중복 제거 작업을 최소화하기 위해 Traffic-Controller에서의 중복 처리는 최소로 줄여야 합니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/15.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;랜딩 존 내부에서 중복 로그 제거&lt;/span&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;중복을 줄이기 위한 파티션 할당 전략 수정&lt;/h4&gt;
+
+&lt;p&gt;subscribe + 멀티 토폴로지(range assignor)에서 supervisor 중단 시 과한 중복이 발생하는 주 원인은 전체 파티션의 소유권 변경이었습니다. 중단한 supervisor가 처리하던 파티션(A)의 소유권을 다른 supervisor의 spout이 이어받아 처리하는데, 기본 파티션 할당 전략인 range assignor에서는 A 파티션뿐만 아니라 다른 모든 파티션의 소유권이 변경되므로 과도한 중복이 발생했습니다.&lt;/p&gt;
+
+&lt;p&gt;그래서 중단한 supervisor가 처리하던 파티션의 소유권만 변경되도록, sticky assignor를 파티션 할당 전략으로 적용하고 다시 장애 테스트를 진행했습니다.&lt;/p&gt;
+
+&lt;p&gt;다음은 단일 토폴로지와 멀티 토폴로지(with sticky assignor)에서 장애 테스트 시 Front Kafka의 파티션별 랙 오프셋 그래프입니다. 빨간색 동그라미는 supervisor 다운 시, 초록색 동그라미는 토폴로지를 하나 내렸다가 올렸을 때, 파란색 사각형은 spout과 bolt 3개를 차례로 내렸을 때입니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/16.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;단일 토폴로지(위)와 멀티 토폴로지(with sticky assignor)(아래)에서 장애 테스트 시 Front Kafka의 파티션별 랙 오프셋&lt;/span&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;빨간색 원: supervisor 다운 시. 단일 토폴로지(위)의 처리 지연 시간이 깁니다.&lt;/li&gt;
+&lt;li&gt;초록색 원: 토폴로지 중단 시. 단일 토폴로지(위)에서는 모든 파티션의 처리가 중단되는 반면, 멀티 토폴로지(아래)에서는 일부 파티션의 처리만 중단됩니다.&lt;/li&gt;
+&lt;li&gt;파란색 사각형: spout과 bolt 3개를 차례로 내렸을 때. 단일 토폴로지(위)에서는 모든 spout, bolt가 종료될 때 모든 파티션의 처리가 중단되지만, 멀티 토폴로지(아래) bolt의 경우 일부 파티션만 처리 중단됩니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;단일 토폴로지(assign)와 멀티 토폴로지(subscribe with sticky assignor)의 장애 테스트 결과를 항목별로 비교하면 다음과 같습니다.&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;항목&lt;/th&gt;
+      &lt;th&gt;단일 토폴로지 + assign&lt;/th&gt;
+      &lt;th&gt;멀티 토폴로지 + subscribe(sticky)&lt;/th&gt;
+      &lt;th&gt;멀티 토폴로지 + subscribe(sticky)의 특징&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;span style="color:red;"&gt;supervisor 중단&lt;/span&gt;&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(75~115초)&lt;br/&gt;약 45초 데이터에 대해 11% 중복 처리&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(30~90초)&lt;br/&gt;약 40초 데이터에 대해 13% 중복 처리&lt;/td&gt;
+      &lt;td&gt;&lt;strong&gt;지연이 다소 줄고, 전체적인 중복 처리의 양이 비슷함&lt;/strong&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;span style="color:green;"&gt;topology kill&lt;/span&gt;&lt;/td&gt;
+      &lt;td&gt;전체 파티션 처리 중단&lt;/td&gt;
+      &lt;td&gt;일부 파티션 지연(15~30초)&lt;/td&gt;
+      &lt;td&gt;전체 파티션의 처리가 멈추지는 않게 됨&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;span style="color:blue;"&gt;spout executor kill&lt;/span&gt;&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(60초)&lt;br/&gt;약 5초 데이터에 대해 3% 중복 처리&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(45~60초)&lt;br/&gt;약 5초 데이터에 대해 0.68% 중복 처리&lt;/td&gt;
+      &lt;td&gt;단일 토폴로지 대비 중복 처리의 양이 감소함&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;span style="color:blue;"&gt;bolt executor kill&lt;/span&gt;&lt;/td&gt;
+      &lt;td&gt;전체 파티션 지연(60초)&lt;br/&gt;약 5초 데이터에 대해 0.4% 중복 처리&lt;/td&gt;
+      &lt;td&gt;일부 파티션 지연(30~60초)&lt;br/&gt;약 10초 데이터에 대해 0.4% 중복 처리&lt;/td&gt;
+      &lt;td&gt;단일 토폴로지 대비 큰 차이 없음&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;이렇게 KafkaConsumer.assign을 subscribe로 변경하고, 커스텀 스케줄러를 구현하고, 비교적 최신 파티션 할당 전략인 sticky assignor를 적용하여 멀티 토폴로지를 도입했습니다. 다양한 장애 테스트 시 단일 토폴로지보다 파티션별 지연과 중복 처리 면에서 이점이 있었고, 특히 supervisor 다운 시 단일 토폴로지 대비 파티션 처리 지연이 감소하면서 중복 수준도 비슷한 수준으로 유지되었습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;데이터 처리 옵션과 클러스터 상태 개념 도입&lt;/h3&gt;
+
+&lt;p&gt;앞서 설명한 기존 로그 파이프라인의 문제점 중 단일 토폴로지 문제를 제외하면 다음 세 가지 문제점이 있었습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;낮과 새벽의 트래픽 차이&lt;/strong&gt;: 낮 시간의 트래픽 중 일부를 새벽에 처리할 수 있다면?&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;모든 로그의 공평한 처리&lt;/strong&gt;: 데이터의 중요도에 따라 차등 처리를 할 수 있다면?&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;장기 저장소와 실시간 검색을 위한 저장소에 모두 전달&lt;/strong&gt;: 각 저장소별로 정해진 비율만큼만 저장할 수 있는 기능이 있다면?&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;각 문제점을 해결하기 위해 2가지 클러스터 상태 개념과 4가지 데이터 처리 옵션을 도입했습니다.&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;데이터 처리 옵션&lt;/th&gt;
+      &lt;th&gt;클러스터 상태&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;처리 중단 허용&lt;/td&gt;
+      &lt;td&gt;backpressure&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;우선순위&lt;/td&gt;
+      &lt;td&gt;mayday&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;실시간 보장 비율&lt;/td&gt;
+      &lt;td&gt;&lt;br/&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;OpenSearch 샘플링 비율&lt;br/&gt;랜딩 존 샘플링 비율&lt;/td&gt;
+      &lt;td&gt;&lt;br/&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;h4 id="backpressure"&gt;처리 중단 허용, 실시간 보장 비율, backpressure를 활용한 비실시간 처리&lt;/h4&gt;
+
+&lt;p&gt;부하(backpressure) 기반 비실시간 처리의 목적은 트래픽 변화에 따라 낮 시간에 집중된 리소스 사용률을 한가한 시간대로 분산함으로써 피크 리소스 사용률을 낮춰 비용을 절감하는 것입니다.&lt;/p&gt;
+
+&lt;p&gt;동작 방식은 다음과 같습니다.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;backpressure는 랜딩 존으로 흐르는 파이프라인과 OpenSearch로 흐르는 파이프라인의 부하 상태를 감지하여 활성화됩니다.  &lt;/li&gt;
+&lt;li&gt;backpressure가 활성화되면, 처리 중단을 허용한 데이터는 설정된 최대 처리 속도 대비 실시간 보장 비율만큼 실시간 처리하고, 나머지는 후처리를 위한 Post Kafka의 별도 토픽에 쌓습니다(Post Kafka 이후 파이프라인에서 낮 시간 부하가 감소할 것을 기대합니다).  &lt;/li&gt;
+&lt;li&gt;backpressure가 비활성화되면(주로 새벽 시간), 쌓인 토픽 데이터에 대해 설정된 최대 처리 속도의 두 배까지 후처리합니다(새벽 시간의 리소스 사용률이 높아지기를 기대합니다).&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h4 id="mayday"&gt;우선순위, 실시간 보장 비율, mayday를 활용한 데이터의 차등 처리&lt;/h4&gt;
+
+&lt;p&gt;비상(mayday 활성) 시 데이터 차등 처리의 목적은 로그별 우선순위를 설정하고 비상시 우선순위에 따라 차등 처리함으로써 서비스와 직결되어 중요도가 높은 로그의 지연을 최소화하고 상대적으로 중요도가 낮은 로그는 천천히 처리해 파이프라인 지연을 효율적으로 해소하는 것입니다.&lt;/p&gt;
+
+&lt;p&gt;Front Kafka와 Post Kafka의 컨슈머별 랙 오프셋을 주기적으로 모니터링하다가 일정 수치를 넘어가면 mayday가 활성화됩니다. 즉, 파이프라인 지연이 일정 수준을 넘으면 활성화됩니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/17.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;Front Kafka, Post Kafka의 컨슈머 랙 오프셋을 모니터링해 일정 수치를 넘어가면 mayday 활성화&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;mayday가 활성화되면, 각 데이터는 우선순위와 실시간 보장 비율에 따라 다음과 같이 처리됩니다.&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;우선순위&lt;/th&gt;
+      &lt;th&gt;mayday 활성화 시 최대 처리 속도&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;1&lt;/td&gt;
+      &lt;td&gt;설정된 최대 처리 속도의 5배까지 처리&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;2&lt;/td&gt;
+      &lt;td&gt;설정된 최대 처리 속도만큼 처리&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;3&lt;/td&gt;
+      &lt;td&gt;설정된 최대 처리 속도 X 실시간 보장 비율 만큼만 실시간 처리&lt;br/&gt;예: 초당 1000개의 처리 속도, 50% 실시간 보장 → 초당 500개 처리 보장&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;이렇게 비상시 데이터의 우선순위에 따라 차등 처리를 수행하고, 우선순위가 높은 데이터의 지연을 최소화하고자 했습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;저장소별 샘플링 비율을 이용한 샘플링 기능&lt;/h4&gt;
+
+&lt;p&gt;OpenSearch와 랜딩 존의 샘플링 비율(sample rate)을 각 데이터별로 설정할 수 있도록 하여, 각 저장소별 저장 비율을 제어할 수 있게 했습니다. 그 결과, 100% 저장이 필요 없는 데이터에 대해서는 전달받은 데이터 중 설정된 비율만큼만 저장해 저장소를 효율적으로 활용할 수 있습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;성과&lt;/h2&gt;
+
+&lt;h3 id=""&gt;무중단, 점진적 배포 실현&lt;/h3&gt;
+
+&lt;p&gt;단일 토폴로지에서 멀티 토폴로지로 전환하면서 일부 파티션의 일시적 중단만 발생하게 되었고, 무중단에 가까운 점진적 배포가 가능해졌습니다. 그 결과, 일부 토폴로지만 변경된 상태로 유지할 수 있게 되어, 전체 토폴로지 업데이트 전 사이드 이펙트 파악과 롤백이 한층 쉬워졌습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/18.gif" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;단일 토폴로지와 멀티 토폴로지 비교, 멀티 토폴로지의 롤링 리스타트&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;실제 토폴로지 롤링 리스타트 배포 시 Front Kafka의 파티션별 랙 오프셋 그래프는 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/19.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;멀티 토폴로지의 Traffic-Controller 롤링 리스타트 배포 시 Front Kafka의 파티션별 랙 오프셋&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;전체 파티션 중 일부 파티션의 랙 오프셋이 증가하는 부분은 각 토폴로지를 중단하고 처리를 재개하는 동안 일부 파티션의 일시적 지연이 발생하는 것을 의미합니다. 대부분 파티션의 랙 오프셋이 일정하게 유지되는 부분을 보면 다른 토폴로지의 처리는 일시적 중단도 없이 처리되는 것을 알 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;같은 시간에 Front Kafka 트래픽 in, out 속도는 다음과 같습니다(Front Kafka 트래픽의 out 속도 = Traffic-Controller의 소비 속도).&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/20.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;멀티 토폴로지의 Traffic-Controller 롤링 리스타트 배포 시 Front Kafka의 트래픽 in(왼쪽), out(오른쪽) 속도 비교&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;Front Kafka의 트래픽 in, out 속도가 대체로 같다는 것을 확인할 수 있습니다. 이는 토폴로지가 하나씩 배포(중단 → 처리 재개 반복)되는 과정에서 Traffic-Controller의 처리가 거의 지연 없이 이루어진다는 것을 의미합니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;실시간/비실시간 처리의 분리&lt;/h3&gt;
+
+&lt;p&gt;처리 중단을 허용한 로그를 비실시간으로 처리할 수 있게 되어, 낮 시간 피크 트래픽을 한가한 시간으로 옮겨 처리할 수 있게 되었습니다.&lt;/p&gt;
+
+&lt;p&gt;backpressure 상태에 따라 처리 중단을 허용한 로그의 처리 양상은 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/21.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;처리 중단을 허용한 로그의 비실시간 처리&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;backpressure가 활성화되었을 때 약 35Kcps를 초과하는 트래픽은 후처리를 위해 쌓아 두고, backpressure가 해제되었을 때 쌓아 둔 트래픽을 처리하는 것을 확인할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;비실시간 처리 전후로, 쌓아둔 데이터를 처리하는 Traffic-Controller의 retry 토폴로지의 bolt 처리량·사용률 변화를 살펴보면 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/22.gif" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;비실시간 처리 전후의 Traffic-Controller의 retry 토폴로지의 bolt 처리량·사용률&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;처리 중단을 허용한 로그는 낮 시간에 backpressure가 활성화되면 실시간 보장 비율만큼만 실시간 처리하고 나머지는 후처리를 위해 쌓아 둡니다. 그리고 새벽 시간에 backpressure가 비활성화되면 최대 처리 속도의 두 배까지 후처리합니다. 이로 인해, 후처리를 담당하는 Traffic-Controller의 retry 토폴로지의 bolt 처리량과 사용률이 새벽 시간에 크게 증가한 것을 확인할 수 있습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;우선순위 기반 처리로 핵심 서비스 영향 최소화&lt;/h3&gt;
+
+&lt;p&gt;파이프라인을 개선한 이후 실제 장애 상황은 아직 경험하지 않았기 때문에, 장애 상황을 시뮬레이션한 결과를 공유합니다. 시뮬레이션 과정은 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;먼저, 다음 표와 같이 우선순위 1, 2, 3으로 지정된 네 가지 데이터를 준비했습니다. 우선순위가 3인 두 가지 데이터의 실시간 보장 비율은 각각 60%와 30%로 설정했습니다. 네 가지 데이터 모두 OpenSearch와 랜딩 존에 저장되도록 설정하고, 최대 처리 속도는 초당 1200개로 설정한 뒤 실제 로그 전송은 초당 1000개씩 발생시켰습니다.&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;우선순위&lt;/th&gt;
+      &lt;th&gt;최대 처리 속도(초당 개수)&lt;/th&gt;
+      &lt;th&gt;실제 전송 속도(초당 개수)&lt;/th&gt;
+      &lt;th&gt;(mayday 발생 시) 실시간 보장 비율&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;1&lt;/td&gt;
+      &lt;td&gt;1200&lt;/td&gt;
+      &lt;td&gt;1000&lt;/td&gt;
+      &lt;td&gt;500%&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;2&lt;/td&gt;
+      &lt;td&gt;1200&lt;/td&gt;
+      &lt;td&gt;1000&lt;/td&gt;
+      &lt;td&gt;100%&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;3&lt;/td&gt;
+      &lt;td&gt;1200&lt;/td&gt;
+      &lt;td&gt;1000&lt;/td&gt;
+      &lt;td&gt;60%&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;3&lt;/td&gt;
+      &lt;td&gt;1200&lt;/td&gt;
+      &lt;td&gt;1000&lt;/td&gt;
+      &lt;td&gt;30%&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;위와 같이 15분 동안 로그를 전송한 후, 전송을 계속 유지한 상태에서 Traffic-Controller 중단 → Front Kafka의 컨슈머 오프셋을 10분 전으로 설정 → Traffic-Controller 재시작 작업을 수행해 mayday 상황을 모사했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/23.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;mayday 상황 시뮬레이션에서 Front Kafka 랙&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;23시 55분경 Traffic-Controller를 중단한 뒤, 23시 56분경 컨슈머 오프셋을 10분 전으로 설정하는 순간 랙이 증가했고, 이후 23시 57분경 Traffic-Controller의 처리가 재개되면서 랙이 감소하는 것을 확인했습니다.&lt;/p&gt;
+
+&lt;p&gt;Traffic-Controller 중단하고 Front Kafka의 컨슈머 오프셋을 10분 전으로 설정하는 과정에서 곧바로 클러스터 상태인 mayday가 활성화되었고, Traffic-Controller 재시작과 동시에 각 데이터는 Traffic-Controller가 처리할 수 있는 최대 처리 속도(4.2Kcps)로 처리되기 시작했습니다.&lt;/p&gt;
+
+&lt;p&gt;이때, 실제 뒷단인 OpenSearch와 랜딩 존으로의 전송 속도는 우선순위에 따라 차등이 있었습니다. 우선순위가 낮은 데이터는 실시간 보장 비율만큼만 전달하고, 우선순위가 높은 데이터는 지연을 줄이고 가능한 한 실시간으로 처리하는 것을 확인했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/24.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;mayday 상황에서 우선순위별 Traffic-Controller의 처리 속도(위), 우선순위별 실제 뒷단으로의 전송 속도(아래)&lt;/span&gt;&lt;/p&gt;
+
+&lt;h3 id=""&gt;샘플링 기능으로 저장소 효율화&lt;/h3&gt;
+
+&lt;p&gt;저장소별로 샘플링 비율을 설정하는 기능을 제공함으로써 저장소를 효율적으로 이용할 수 있게 되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/25.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;OpenSearch 샘플링 비율 조정(8월 14일 오후) 전후의 OpenSearch 사용량(문서 수, 크기)&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;샘플링 비율을 조정한 후 실제로 저장소 사용량이 감소하는 것을 확인했습니다.(일마다 자정 이후에 문서 수와 크기가 급감하는 것은 Index State Management 정책에 의해 오래된 인덱스가 삭제되는 것과 관련이 있습니다.)&lt;/p&gt;
+
+&lt;h2 id=""&gt;마치며&lt;/h2&gt;
+
+&lt;p&gt;storm-kafka-client 라이브러리를 수정하고 커스텀 스케줄러를 작성해, 단일 토폴로지로 운영하던 Storm의 토폴로지를 멀티 토폴로지로 변경했습니다. 그 결과 무중단, 점진적 배포가 가능해졌습니다.&lt;/p&gt;
+
+&lt;p&gt;또한 다양한 데이터 처리 옵션과 클러스터 상태 개념을 도입해 다음과 같은 문제점을 해결했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;낮 시간에 집중된 트래픽을 한가한 시간에 처리&lt;/li&gt;
+&lt;li&gt;트래픽 지연 등 비상 상황에서 데이터의 우선순위에 따라 처리 속도에 차등을 두어, 우선순위가 높은 데이터의 지연을 최소화&lt;/li&gt;
+&lt;li&gt;저장소별 샘플링 비율 설정 기능을 제공해 저장소를 효율적으로 사용&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=""&gt;데이터 처리 옵션 변경의 필요성&lt;/h3&gt;
+
+&lt;p&gt;장비는 한정되어 있고, 새로 도입한 지능형 파이프라인이 비상시와 평시에 모두 효율적으로 동작하려면 데이터마다 적절한 처리 옵션을 지정해야 한다는 한계가 있습니다.&lt;/p&gt;
+
+&lt;p&gt;지능형 파이프라인 도입으로 기대하는 수준은 다음과 같습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;비실시간 처리&lt;/strong&gt;: 낮 시간의 피크 트래픽이 새벽으로 많이 옮겨져, 낮과 새벽에 처리되는 트래픽 규모가 비슷한 수준이 되기를 기대합니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/26.gif" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;낮 시간에 집중된 트래픽을 한가한 새벽 시간에 처리하는 이상적인 모습을 표현하는 애니메이션&lt;/span&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;비상시 우선순위 기반 처리&lt;/strong&gt;: 시뮬레이션 결과와 같이 우선순위가 높은 데이터의 지연이 최소화되기를 기대합니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/27.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;처리 지연 등의 mayday 상황에서 데이터가 우선순위별 차등 속도로 전송되는 이상적인 모습&lt;/span&gt;&lt;/p&gt;
+
+&lt;p&gt;비실시간 처리로 낮·새벽 시간의 트래픽 처리량이 비슷한 수준이 되려면 처리 중단을 허용한 로그가 충분히 많아야 하고, 비상시 우선순위 기반 처리가 적절히 수행되려면 데이터의 우선순위가 고르게 분포해야 한다는 한계가 있습니다.&lt;/p&gt;
+
+&lt;p&gt;그래서 사용자 데이터 특성에 맞게 데이터 처리 옵션을 잘 설정할 수 있도록 사내에 여러 가지 안내와 홍보를 진행할 예정입니다. 무분별한 우선순위 지정을 막기 위해, 우선순위는 로그 데이터가 서비스에 이용되는지(주요 지표 또는 실시간 학습·집계에 필요한 데이터) 여부 등을 고려해 로그 전송처와 운영자가 협의하여 결정합니다.&lt;/p&gt;
+
+&lt;h3 id="ai"&gt;향후 계획 - AI 기반 클러스터 상태 전환&lt;/h3&gt;
+
+&lt;p&gt;현재는 지정된 임계값을 초과하거나 하회할 때 backpressure, mayday 등의 클러스터 상태가 변경됩니다. 이 방식은 임계값 근방에서 트래픽이나 지연이 유지되는 경우 상태가 너무 자주 변경될 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;또한 클러스터 규모가 변경되거나 클러스터마다 지연을 허용하는 수준이 달라지는 경우도 있습니다. 이 경우에는 운영자가 임계값을 직접 조정해야 합니다.&lt;/p&gt;
+
+&lt;p&gt;향후에는 사람의 개입 없이 트래픽과 지연 관련 시계열 데이터를 AI에게 학습시켜, 클러스터 상태를 AI가 스스로 판단하고 전환할 수 있도록 개선해 볼 계획입니다.&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <title>[인턴십] 2026 NAVER AI CHALLENGE를 소개합니다.</title>
+    <link rel="alternate" href="https://d2.naver.com/news/7477295" />
+    <category term="news" />
+    <id>https://d2.naver.com/news/7477295</id>
+    <updated>2025-12-10T19:41:17Z</updated>
+    <content type="html">&lt;p&gt;&lt;img src="/content/images/2025/12/-----------2025-12-10------5-46-58.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;p&gt;네이버의 개발 문화와 함께 프로젝트 협업 방식을 체험할 수 있는 &lt;strong&gt;2026 NAVER AI CHALLENGE 인턴십 모집&lt;/strong&gt;을 시작했습니다.&lt;br/&gt;
+실무에서 다루는 AI 문제를 &lt;strong&gt;네이버의 현업 엔지니어와 함께 아이디어 설계 단계부터 기술적 방향성, 검증 과정까지 전 과정을 함께 학습하고 성장&lt;/strong&gt;할 수 있는 좋은 기회입니다. 원활한 협업과 멘토링을 위해 전용 좌석을 제공하며, 수행 기간 동안 프로젝트 활동비 및 최신 OA 장비도 지급됩니다.&lt;/p&gt;
+
+&lt;p&gt;학년, 전공 상관 없이 학/석사 재학생이면 누구나 지원할 수 있으니, 네이버와 AI 프로젝트에 관심 있는 분들은 모두 지원해보세요!&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;접수 기간&lt;/strong&gt;: 12.10(수) - 12.16(화) 오전 11시&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;서류 전형&lt;/strong&gt;: 12월 3주 - 12월 4주&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;직무 인터뷰&lt;/strong&gt;: 2026년 1월 1주 - 1월 2주&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;합격자 발표&lt;/strong&gt;: 2026년 1월 3주 중&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;인턴십 기간&lt;/strong&gt;: 1.19(월) - 2.13(금) / 4주&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;과제 안내&lt;/strong&gt; (아래 2개 과제 중 1개 과제 선택)
+&lt;ul&gt;&lt;li&gt;AI 기반 데이터 파이프라인 로그 분석을 통한 Data Asset 자동 매핑 및 End-to-End Data Lineage 구축 (&lt;a href="https://d2.naver.com/helloworld/5251464"&gt;링크&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;VLM 기반 사용자 경험 중심 검색/추천 품질 자동 평가 시스템 개발 (&lt;a href="https://naver.me/FXksegex"&gt;링크&lt;/a&gt;)&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id="2026naveraichallengehttpsrecruitnavercorpcomrcrtviewdoannoid30004232swsubjobcdarrsyscompanycdarremptypecdarrenttypecdarrworkareacdarr"&gt;&lt;a href="https://recruit.navercorp.com/rcrt/view.do?annoId=30004232&amp;amp;sw=&amp;amp;subJobCdArr=&amp;amp;sysCompanyCdArr=&amp;amp;empTypeCdArr=&amp;amp;entTypeCdArr=&amp;amp;workAreaCdArr=#"&gt;&lt;strong&gt;&gt;&gt; 2026 NAVER AI CHALLENGE 세부내용 및 지원하기&lt;/strong&gt;&lt;/a&gt;&lt;/h4&gt;</content>
+  </entry>
+  <entry>
+    <title>디자인시스템이 AI를 만났을 때: FE 개발 패러다임의 변화</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/3442203" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/3442203</id>
+    <updated>2025-12-09T14:42:01Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/89535060?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;p&gt;네이버파이낸셜 디자인시스템과 AI를 이용하여 마크업 자동화 작업에 대한 소소한 경험을 공유합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;p&gt;AI를 이용한 마크업 등 디자인 작업관련 관심 있으신 모든 분들&lt;/p&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;오늘 이야기의 키워드&lt;/li&gt;
+&lt;li&gt;知彼知己
+&lt;ul&gt;&lt;li&gt;네이버파이낸셜 디자인시스템
+&lt;ul&gt;&lt;li&gt;디자인 토큰&lt;/li&gt;
+&lt;li&gt;디자인 시스템 컴포넌트&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;우리를 도와 줄 AI 는?&lt;/li&gt;
+&lt;li&gt;百戰不殆&lt;/li&gt;
+&lt;li&gt;Let's Try&lt;/li&gt;
+&lt;li&gt;마크업 작업을 위한 사전 준비
+&lt;ul&gt;&lt;li&gt;디자인시스템 Code Connect&lt;/li&gt;
+&lt;li&gt;디자인시스템 instruction&lt;/li&gt;
+&lt;li&gt;이제 FE 개발 시작해도 될 마크업, 하지만 아쉬웠던 점&lt;/li&gt;
+&lt;li&gt;그 외로 힘들었던 점&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;현실 개발에서는 어떻게 해야하는가?&lt;/li&gt;
+&lt;li&gt;마크업 직업 개발했더니 어떠니?&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>LLM이지만 PDF는 읽고 싶어: 복잡한 PDF를 LLM이 이해하는 방법</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/9036125" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/9036125</id>
+    <updated>2025-12-04T17:26:22Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/89639975?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;p&gt;LLM-friendly PDF parser PaLADIN을 소개합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;AI/LLM을 적극적으로 활용하고 싶으신 분&lt;/li&gt;
+&lt;li&gt;문서 처리에 관심이 있으신 분&lt;/li&gt;
+&lt;li&gt;웹검색에 관심이 있으신 분&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ol&gt;
+&lt;li&gt;PDF가 왜 중요한가요? &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;LLM-friendly PDF Parser&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;기술 탐색 및 PoC (with NVIDIA) &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;관련 기술 탐색&lt;/li&gt;
+&lt;li&gt;PoC with NVIDIA&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;PaLADIN: 표와 차트, 숫자를 정확히 이해하고 표현하는 LLM-friendly PDF Parser &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;아키텍쳐 설계 - nv-ingest&lt;/li&gt;
+&lt;li&gt;아키텍쳐 설계 - PaLADIN&lt;/li&gt;
+&lt;li&gt;Model 소개 - Element-Detector: Doclayout-Yolo&lt;/li&gt;
+&lt;li&gt;Model 소개 - Table-Extractor: nemoretriever-table-structure-v1&lt;/li&gt;
+&lt;li&gt;Model 소개 - Chart-Extractor: google/gemma3-27b-it&lt;/li&gt;
+&lt;li&gt;Model 소개 - Papago OCR&lt;/li&gt;
+&lt;li&gt;PDF parsing 예제&lt;/li&gt;
+&lt;li&gt;속도 개선 및 최적화&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;성능 평가 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;Parsing 평가셋 구축&lt;/li&gt;
+&lt;li&gt;Parsing 능력 평가&lt;/li&gt;
+&lt;li&gt;속도 측정&lt;/li&gt;
+&lt;li&gt;성능 비교&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;서비스 적용 사례: AIB 증권사 리포트 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;서비스 적용 예시&lt;/li&gt;
+&lt;li&gt;Summary 모델 선정: LLM as a judge&lt;/li&gt;
+&lt;li&gt;Summary 예시&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Future Works &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;Table Cell 좌표 오류 개선&lt;/li&gt;
+&lt;li&gt;차트 정확도 개선&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>VLOps:Event-driven MLOps &amp; Omni-Evaluator</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/0931890" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/0931890</id>
+    <updated>2025-12-03T16:05:10Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/89568623?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Event-driven MLOps는 학습·평가·배포를 Typed Message 단위로 정의하고, Event Sensor가 이를 감지해 자율적으로 실행하는 구조입니다.&lt;/li&gt;
+&lt;li&gt;Kubeflow 같은 파이프라인처럼 전체 버전 관리가 필요하지 않으며, 메시지를 추가하는 것만으로 기능 확장이 가능합니다.&lt;/li&gt;
+&lt;li&gt;사용자는 내부 오케스트레이션을 몰라도 메시지 발행만으로 동일한 파이프라인을 구동할 수 있습니다.&lt;/li&gt;
+&lt;li&gt;이를 통해 평가·배포 시스템 간 느슨한 결합(Loose Coupling)과 클라우드 간 호환성을 확보했습니다.&lt;/li&gt;
+&lt;li&gt;Omni-Evaluator와 Dashboard는 다양한 엔진·벤치마크를 통합하고, 실시간 모니터링과 사용자 주도 트리거 기능을 제공합니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;MLOps 엔지니어, ML 리서처, 데이터 사이언티스트&lt;/li&gt;
+&lt;li&gt;클라우드 인프라/DevOps 개발자, 모델 배포 및 평가 담당자&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ol&gt;
+&lt;li&gt;MLOps가 필요한 이유  &lt;/li&gt;
+&lt;li&gt;Event-driven MLOps의 등장  &lt;/li&gt;
+&lt;li&gt;Event Sensor: 핵심 로직  &lt;/li&gt;
+&lt;li&gt;EvalOps에서 Omni-Evaluator로  &lt;/li&gt;
+&lt;li&gt;VLOps Dashboard: 사용자 경험의 허브  &lt;/li&gt;
+&lt;li&gt;결론 및 비전&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>FE News 25년 12월 소식을 전해드립니다!</title>
+    <link rel="alternate" href="https://d2.naver.com/news/3740852" />
+    <category term="news" />
+    <id>https://d2.naver.com/news/3740852</id>
+    <updated>2025-12-03T14:59:14Z</updated>
+    <content type="html">&lt;p&gt;&lt;img src=https://d2.naver.com/content/images/2023/07/-----------2023-07-06------4-16-49.png&gt;&lt;/p&gt;
+
+&lt;h2 id=""&gt;주요소식&lt;/h2&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/12/image-2025-12-3_10-45-38.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;다음과 같은 유용한 정보들을 만나보실 수 있습니다.&lt;/p&gt;
+
+&lt;h4 id="wasmdoesnotstandforwebassembly"&gt;Wasm Does Not Stand for WebAssembly&lt;/h4&gt;
+
+&lt;p&gt;WebAssembly라는 이름 때문에 많은 개발자들이 Wasm을 웹 기술이자 어셈블리 언어로 오해한다. 하지만 웹 어셈블리는 웹만을 위한 기술도 아니고 어셈블리도 아니다. WebAssembly라는 이름은 프로젝트 펀딩을 위한 네이밍이었다. Wasm은 가상 머신에서 실행되는 바이트코드로, JVM이나 .NET 바이트코드와 더 유사하다.&lt;/p&gt;
+
+&lt;h4 id="llmreact"&gt;LLM 시대, React의 자기 강화 피드백 루프&lt;/h4&gt;
+
+&lt;p&gt;LLM 훈련 데이터와 개발자 출력 사이의 피드백 루프로 React가 사실상 플랫폼이 되었다. 지난 12개월간 1,300만 개 이상의 React 사이트가 배포되었으며, Replit과 Bolt 같은 LLM 도구들은 시스템 프롬프트에 React를 명시적으로 하드코딩한다. 새로운 프레임워크가 성공하려면 LLM 훈련 데이터 포함부터 시작해야 하는데, 이는 최소 12~18개월이 소요되며 그 사이 React는 또다시 천만 개 이상의 사이트를 생성한다. 이것이 바로 "dead framework theory"다.&lt;/p&gt;
+
+&lt;h4 id="vercel"&gt;Vercel이 재정의하는 프로그래밍 언어의 미래&lt;/h4&gt;
+
+&lt;p&gt;Vercel은 Server Actions, 'use cache', 'use workflow' 같은 디렉티브를 통해 분산 시스템의 복잡성을 언어 레벨에서 관리하려는 비전을 보여준다. 직렬화 가능한 클로저, 대수적 효과, 점진적 계산이라는 세 가지 핵심 개념 위에 구축된 이 기능들은 단순한 라이브러리가 아닌 새로운 언어 구조처럼 작동한다. 프로그래밍 언어가 어셈블리에서 동시성까지 진화해온 것처럼, 다음 단계는 데이터 관리와 분산 시스템의 복잡성을 네이티브로 다루는 것이다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;브라우저가 프레임워크를 대체하기 시작했다&lt;/h4&gt;
+
+&lt;p&gt;최근 10년간 프런트엔드 개발의 가장 큰 변화는 Shadow DOM, ES 모듈, Navigation API, View Transitions API 등 네이티브 웹 플랫폼 기능들이 프레임워크 핵심 기능을 대체하기 시작했다는 점이다. 라우팅, 상태 관리, 컴포넌트 격리 등 프레임워크가 제공하던 기능이 이제 브라우저 표준으로 자리잡으면서, 무거운 번들과 복잡한 추상화 없이도 고성능 애플리케이션 구축이 가능해졌다. 프레임워크는 여전히 가치를 제공하지만, 이제는 필수가 아닌 의 영역으로 이동하고 있다.&lt;/p&gt;
+
+&lt;h4 id="llmcouncilai"&gt;LLM Council: 집단 지성을 구현한 AI 의사결정 시스템&lt;/h4&gt;
+
+&lt;p&gt;Andrej Karpathy가 개발한 LLM Council은 여러 AI 모델이 민주적으로 협업하여 복잡한 문제를 해결하는 로컬 웹 애플리케이션이다. 독립적 의견 제시 → 상호 검토 및 순위 매김 → 의장 LLM의 최종 종합이라는 3단계 프로세스를 통해, 단일 모델의 한계를 극복하고 더 신뢰할 수 있는 답변을 생성한다. OpenRouter API로 GPT-5.1, Gemini 3 Pro, Claude Sonnet 4.5, Grok 4 등 다양한 최신 모델을 동시에 활용할 수 있으며, Python(FastAPI)과 React + Vite 기반으로 간편하게 로컬 환경에서 실행 가능하다. 이는 LLM 활용의 새로운 패러다임으로, 각 모델의 강점을 결합하고 약점을 보완하는 집단 지성 접근법을 제시한다.&lt;/p&gt;
+
+&lt;h2 id="fenews2512httpsgithubcomnaverfenewsblobmasterissues202512md"&gt;&lt;a href="https://github.com/naver/fe-news/blob/master/issues/2025-12.md"&gt;&gt;&gt; FE News 25년 12월 소식 보러가기&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&lt;br/&gt;  &lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;&lt;strong&gt;◎ FE News란?&lt;/strong&gt;&lt;br/&gt;
+  네이버 FE 엔지니어들이 엄선한 양질의 FE 및 주요한 기술 소식들을 큐레이션해 공유하는 것을 목표로 하며, 이를 통해 국내 개발자들에게 지식 공유에 대한 가치 인식과 성장에 도움을 주고자 하는 기술소식 공유 프로젝트 입니다.&lt;/p&gt;
+
+  &lt;p&gt;매월 첫째 주 수요일, 월 1회 발행 되고 있으니 많은 관심 부탁드립니다.&lt;br/&gt;
+  &lt;a href="https://fenews.substack.com/embed"&gt;▷ 구독하기&lt;/a&gt;&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>사용자의 목소리를 AI로 재현하다: LLM기반 Multi Agent UX플랫폼 개발기</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/2678553" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/2678553</id>
+    <updated>2025-12-02T16:52:17Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt;
+해당 발표는 &lt;a href="https://dan.naver.com/25/sessions/699"&gt;팀네이버 컨퍼런스 DAN25 홈페이지&lt;/a&gt;에서도 살펴보실 수 있습니다.&lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/89560941?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;p&gt;“사용자에 진심인 3명이 모여, Persona가 말하게 만들다”&lt;br/&gt;
+이 세션은 잘 만든 AI 시스템을. 넘어, 디자이너·AI 리서처·개발자가 경험한 AI 시대의 협업 가능성을 제안합니다.
+사용자 페르소나봇 NSona의 기획부터 구현, 평가까지 전 과정을 공유합니다. AI로 사용자 리서치 데이터를 실시간 협업 자원으로 전환하며, Multi-Party 대화 시스템에서 사용자와 함께 일하는 방식을 실험했습니다.&lt;br/&gt;
+세 명은 함께 AI를 만들며 역할과 협업 구조가 바뀌는 경험을 했습니다. 디자이너는 프롬프트를 설계하고, 리서처는 로직을 에이전트 구조로 바꾸었으며, 프론트 개발자는 AI를 비평 대상으로 다뤘습니다. 중요한 건 ‘어디까지 만들었느냐’가 아니라 ‘어디서 시작점을 찍느냐’임을 깨달았습니다.&lt;br/&gt;
+참석자분들께서 창의적, 기술적 인사이트와 함께 자신만의 AI 협업 모델을 고민할 수 있는 영감을 얻을 수 있기를 기대합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;p&gt;디자이너 / 개발자 / 기획자 / PM&lt;br/&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;사용자 조사-서비스개발 사이의 간극을 줄이는법에 관심있는 분&lt;/li&gt;
+&lt;li&gt;사용자를 재현한 페르소나봇을 기획하고 개발한 사례에 관심 있는 분&lt;/li&gt;
+&lt;li&gt;Multi-Party 대화 기반 서비스 구조에 관심 있는 분&lt;/li&gt;
+&lt;li&gt;서비스 사용 목적에 기반한 새로운 모델 품질 평가 방식이 궁금한 분&lt;/li&gt;
+&lt;li&gt;AI시대의 새로운 협업 모델의 영감을 얻고싶으신 분&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ol&gt;
+&lt;li&gt;아이디어란 반짝이는 빛이 아닌, 빛을 잃지 않게 하는 힘이다 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;AI 시대, 아이디어의 현실화를 위한 우리의 저지름&lt;/li&gt;
+&lt;li&gt;최소인원 × 빠른실행&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Idea: AI 사용자를 Daily협업으로 끌어들이다 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;기존 UX리서치의 한계&lt;/li&gt;
+&lt;li&gt;사용자 페르소나 봇 “NSona” 개발&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Engineering: 페르소나 - AI 모델 서비스 개발과 UX 실현의 사이에서 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;서비스 개발 관점에서 본 UX 요구사항과 기술적 Challenges&lt;/li&gt;
+&lt;li&gt;NSona만 기술적 특징: Agent 중심의 서비스 구조 설계와 UX 중심의 Service-specific 평가 프로세스 구축&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Evaluation: 사용자를 생생히 재현하여 몰입을 일으키다 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;UX관점에서 새롭게 구축한 모델 평가 과정&lt;/li&gt;
+&lt;li&gt;NSona 평가결과와 인사이트&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Collaboration: 선이 아닌 점으로 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;RNR은 더 이상 경계가 아니다. 중심에서 퍼지는 파장이다.&lt;/li&gt;
+&lt;li&gt;익숙하고 아늑한 틀을 넘어, AI와 함께 찍은 새로운 시작점&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>웹툰 창작 생태계 보호를 위한 연구</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/4571155" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/4571155</id>
+    <updated>2025-12-02T11:20:27Z</updated>
+    <content type="html">&lt;p&gt;네이버 웹툰은 웹툰, 웹소설 등 다양한 창작물을 독자에게 제공하는 플랫폼을 구축하고, 이를 통해 창작자가 전 세계 독자와 만나 소통하며 안정적인 수익을 바탕으로 창작 활동에 온전히 집중할 수 있는 환경을 만들기 위해 노력하고 있습니다. 특히 하나의 스토리를 다양한 IP(intellectual property)로 확장해 글로벌 시장의 규모를 지속적으로 키우고 있으며, 창작자와 독자, 플랫폼이 상생하며 지속 가능한 가치를 창출하는 디지털 창작 생태계를 만들어 나가는 데 주력하고 있습니다.&lt;/p&gt;
+
+&lt;p&gt;하지만 창작 생태계가 활성화되고 성장할수록 이를 훼손하는 위협도 심화되고 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/e0cc9cda-5be6-4951-b42e-5e1985d2aa86.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;콘텐츠 불법 유출&lt;/strong&gt;: 저작권자의 허가 없이 디지털 콘텐츠를 무단으로 복제, 배포 또는 공유하는 행위로, 창작자의 정당한 수익을 침해할 뿐만 아니라 플랫폼의 신뢰성과 비즈니스 모델 자체를 훼손할 수 있습니다. 이로 인해 저작권자의 경제적 손실과 더불어 창작 생태계 위기가 초래될 수 있습니다.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;생성형 AI의 무단 학습&lt;/strong&gt;: 최근 생성형 AI(generative AI)의 급격한 발전과 더불어, 타인의 저작물을 허가 없이 AI 모델 학습에 사용하는 행위가 증가하고 있습니다. 비허가 샘플을 기반으로 무단 학습(파인튜닝)해 2차 저작물을 생성하거나, 원작의 콘셉트와 스타일을 벗어난 이미지를 만들어낼 수 있습니다. 이는 결과적으로 원저작물의 고유한 가치와 정체성을 왜곡하고 저작권 침해 문제를 더욱 확산시킬 우려가 있어, 해당 악용 사례에 대한 적극적인 대응이 필요한 상황입니다.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;유해 콘텐츠 업로드&lt;/strong&gt;: 플랫폼 내 사용자 생성 콘텐츠(UGC) 공간에 선정적이거나 폭력적인 콘텐츠가 무분별하게 업로드되는 경우에는 플랫폼의 건전성을 저하하고 대외 신뢰도를 떨어뜨릴 수 있습니다. 또한, 검수 및 운영에 소요되는 리소스가 과도하게 증가해 궁극적으로 이용자의 서비스 경험에 부정적인 영향을 미칩니다.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;이와 같이 창작 생태계의 건전한 순환 구조를 훼손하고, 경제적 손실, 저작권 침해, 운영 비용 증가 등의 리스크를 야기하는 위협으로부터 창작 생태계를 보호하기 위해 더욱 체계적이고 적극적인 기술이 필요합니다. 네이버 웹툰은 창작 생태계 보호를 위해 자체 설루션 연구 및 개발을 지속해왔으며, 대표적으로 다음과 같은 체계를 구축했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;TOONRADAR&lt;/strong&gt;: 불법 유출자를 추적하고 차단하는 기술로, 사전 차단과 사후 추적의 핵심 기능으로 구성되어 있습니다. 특히 사후 추적을 위해 육안으로는 식별이 불가능한 미세 신호를 콘텐츠 내부에 삽입하는 워터마킹 기술을 적용해 최초 유출 경로를 명확하게 식별합니다.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;IMPASTO&lt;/strong&gt;: 생성형 AI 무단 학습에 의한 저작권 침해에 대응하기 위한 학습 방지 기술로, 원본 이미지에 보호 왜곡(protective perturbation) 신호를 삽입해, 생성형 AI 모델이 이를 무단으로 학습하면 생성 결과가 의도대로 나오지 않도록 유도합니다.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;XPIDER&lt;/strong&gt;: UGC 공간 내 유해 콘텐츠 자동 탐지 및 차단 기술로, 특히 실사 도메인과는 다른 특성을 가진 만화 도메인에도 효과적으로 대응할 수 있도록 설계되었습니다. 이를 통해 플랫폼 운영에 필요한 검수 리소스를 대폭 절감하고, 사용자에게 안전하고 쾌적한 콘텐츠 경험을 제공합니다.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/dabb86e8-9858-427f-aa07-15d4b2834757.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;이 글에서는 창작 생태계 보호를 위한 연구 중에서도 특히 저작권 보호를 목적으로 도입된 &lt;strong&gt;워터마킹&lt;/strong&gt;(TOONRADAR에서 사후 추적 용도로 활용)과 &lt;strong&gt;학습 방지 기술&lt;/strong&gt;(비가시성과 처리 속도에 특화된 IMPASTO의 두 가지 버전)을 소개하고자 합니다. 이 두 기술은 원본 콘텐츠에 미세한 수준의 변형을 적용함으로써 저작권 보호 효과를 달성하는 방식이라는 공통 특성이 있습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;워터마킹&lt;/h2&gt;
+
+&lt;p&gt;워터마킹은 원본 디지털 이미지의 픽셀 값에 비가시적 식별 신호(워터마크)를 삽입하고 콘텐츠 유출 시 해당 신호를 추출해 불법 유통 경로를 추적함으로써 저작권을 효과적으로 보호하는 기술입니다. 이 방식은 DRM(디지털 저작권 관리) 시스템과 달리, &lt;strong&gt;DRM-free 환경에서의 사후 추적&lt;/strong&gt;이 가능하다는 특징이 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/4b18ed8a-5648-41f5-a3c5-6a7dd0e65259.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;h3 id=""&gt;요구 사항&lt;/h3&gt;
+
+&lt;p&gt;워터마킹 시스템은 불법 유통 경로 추적 과정에서 성공적으로 콘텐츠에 정보를 삽입하고 추출하면서, 이용자의 서비스 경험에는 영향을 주지 않아야 합니다. 따라서 실효성 있는 시스템 구현을 위해서는 다음 세 가지 요구 사항을 충족해야 합니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;비가시성&lt;/strong&gt;(invisibility): 워터마크 삽입으로 인한 왜곡이 사람의 눈으로 잘 구분되지 않아야 함. 원본 이미지와 워터마크를 삽입한 이미지 간의 유사도(PSNR, SSIM 등)로 평가.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;강인성&lt;/strong&gt;(robustness): 신호 처리 공격, 기하학적 공격이 가해진 이후에도 워터마크가 정상적으로 추출되어야 함. 원본 워터마크와 공격 이후 추출된 워터마크 간의 오류율로 평가.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;삽입량&lt;/strong&gt;(capacity): 워터마크를 삽입함으로써 확보할 수 있는 정보량으로, 사후 추적이 가능하도록 충분한 정보량이 워터마크에 삽입되어야 함. 추출 성능을 일정 수준 유지하면서 삽입할 수 있는 정보가 많을수록 우수하다고 평가.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/49af4fbb-5a93-445a-8150-1355af119c50.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;웹툰 도메인에서 워터마킹 기법의 적용 가능성을 비가시성과 강인성 측면에서 분석해보았습니다. 먼저 비가시성 측면에서는, 웹툰 이미지가 실사 이미지에 비해 구성이 단순하고 평탄한 영역이 많아 워터마크 삽입 흔적이 시각적으로 더 쉽게 드러날 것이라고 판단했습니다. 또한 강인성 측면에서는, 웹툰 콘텐츠의 불법 유출 과정에서 신호 처리, 기하학적 변형, 이미지 편집 공격이 복합적으로 가해지며 공격 양상 또한 다양하므로, 이에 대응 가능한 충분한 강인성을 확보하기 어려울 것이라고 판단했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/883dcd70-5bdc-420b-8f9d-588d44916fb9.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;따라서 웹툰 워터마킹 연구 과정에서 다음과 같은 핵심 요구 사항을 설정했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;비가시성: 소비자가 시각적으로 워터마크의 존재를 인지할 수 없어야 함&lt;/li&gt;
+&lt;li&gt;강인성: 불법 유출 시 발생 가능한 다양한 공격을 견딜 수 있어야 함&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;기존의 룰 기반 워터마킹은 비가시성 측면에서 제약이 있고 구조적 한계가 존재하기 때문에, &lt;strong&gt;AI 기반 워터마킹 기법을 도입 및 연구해 비가시성과 강인성을 동시에 갖춘 워터마킹 모델&lt;/strong&gt;을 확보하고자 했습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;불법 유출 사례 조사 및 공격 유형 분석&lt;/h3&gt;
+
+&lt;p&gt;공격 유형을 분석하기 위해 국내외 불법 유출 사이트에 업로드된 이미지를 조사해 신호 처리 공격, 기하학적 공격, 편집 공격의 세 가지 유형으로 분류했습니다. 조사 결과, 원본 이미지의 세부 정보가 육안으로 확인될 정도로 훼손되어 워터마크 추출을 어렵게 하는 강도 높은 공격 사례가 다수 발견되었으며, 특히 해외 사이트에서는 대사 번역 및 재구성을 포함한 편집 공격도 빈번히 확인되었습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;신호 처리 공격&lt;/strong&gt;: JPEG 압축, 블러, 노이즈 추가 등&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;기하학적 공격&lt;/strong&gt;: 절삭, 크기 조정, 회전 등&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;편집 공격&lt;/strong&gt;: 대사 수정, 식자 재구성 등&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/85bb5828-f85d-4b6e-b6df-72abb5640ddd.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;원본 이미지와 공격받은 이미지 간의 잔차(residual) 데이터를 생성해 공격 유형을 분석했고, 미세한 신호 처리 공격에 대해서는 이미지 포렌식 모델 및 분석 도구를 도입해 더욱 정밀하게 공격을 분석했습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;네트워크 구조 설계 및 손실 함수 탐색&lt;/h3&gt;
+
+&lt;p&gt;워터마킹의 주요 요구 사항(비가시성, 강인성, 삽입량)은 상호 보완적이면서도 상충하는 특성이 있습니다. 예를 들어, 강인성을 높이기 위해 삽입 세기를 강하게 설정하면 비가시성이 저하될 수 있고, 삽입량을 늘리면 다른 두 특성이 모두 저하될 위험이 있습니다. 따라서, AI 기반 워터마킹 모델을 통해 품질 지표 간 트레이드오프를 최소화하고 보이지 않는(unseen) 공격에도 유연하게 대응하는 파이프라인을 구축했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/a7468617-b53b-4998-bcb7-ea779b087e27.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;워터마킹 모델은 삽입기(embedder), 공격 레이어(attack layer), 추출기(extractor)의 세 가지 주요 모듈로 구성됩니다. 삽입기는 원본 이미지와 워터마크 패턴을 입력받아 워터마킹된 이미지를 생성합니다. 공격 레이어는 다양한 공격을 미분 가능한 네트워크 레이어로 구현해 end-to-end 학습이 가능하도록 설계되었습니다. 추출기는 공격이 가해진 이미지에서 워터마크 정보를 복원합니다.&lt;/p&gt;
+
+&lt;p&gt;모델의 학습 과정에서는 다양한 공격 조합 및 배치 구성을 실험해 목표 수준의 비가시성과 강인성을 달성했으며, 특히 불법 유출 사이트에서 관찰되었지만 유형 판별이 어려운 공격 사례나 상용 도구에 의한 공격 사례에 대응하기 위해 공격을 모사하는 모델을 추가로 자체 구축해 공격 레이어에 적용했습니다. 학습에 사용된 주요 손실 함수는 원본 이미지와 워터마킹된 이미지 간의 차이를 최소화해 비가시성을 향상시키는 IRL(image reconstruction loss)과, 원본 워터마크 패턴과 추출된 패턴 간 차이를 최소화해 강인성을 확보하는 PRL(pattern reconstruction loss)로 구성되었습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;성능 평가&lt;/h3&gt;
+
+&lt;p&gt;확보된 워터마킹 모델의 성능 평가 결과는 다음과 같습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;강인성&lt;/strong&gt;: 벤치마크 도구를 구성하는 10종 이상의 공격(Level 5)에 대해 1% 미만의 오류율 달성&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;비가시성&lt;/strong&gt;: PSNR 기준 46 dB 이상&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;강인성 평가에서는 자체 개발한 벤치마크 도구로 다양한 유형의 공격에 대해 가장 강한 수준으로 테스트했으며, 1% 미만의 오류율로 높은 강인성을 입증했습니다. 평가 과정에서 적용된 대표적인 공격 유형은 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/4ec663f9-10a2-42b3-9d5d-c20c0c4d1e11.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;비가시성은 PSNR 기반으로 평가한 결과, 46dB 이상의 우수한 성능을 달성했습니다. 정량적 평가와 더불어 실제 사용자의 시각적 인지 여부를 확인하기 위해 내부 구성원을 대상으로 사용자 평가(총 약 130명 참여)를 진행했습니다. 실험 결과, 응답자의 88.5%가 원본 이미지와 워터마킹된 이미지를 구분하지 못하는 것으로 나타나, 개발 모델이 실제 서비스 환경에 적용 가능한 수준의 비가시성을 확보했음을 확인했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/46a1a68d-8184-4cd1-8d09-dd95181eed8f.jpg" alt="figure_유저스터디" /&gt;&lt;/p&gt;
+
+&lt;h3 id=""&gt;운영 현황&lt;/h3&gt;
+
+&lt;p&gt;네이버 웹툰은 최초 불법 유출자를 식별하고 차단하는 TOONRADAR 시스템을 자체 연구 개발해 2017년 7월부터 국내외 불법 웹툰 복제물 추적에 활용하고 있습니다. 이 글에서 소개한 AI 기반 워터마킹 모델은 현재 TOONRADAR의 사후 추적 모듈로 도입되어 창작 생태계 보호에 크게 기여하고 있습니다. 또한 웹툰 콘텐츠 보호뿐만 아니라 향후 AI 생성 콘텐츠의 신뢰성 확보 등 산업 및 정부 차원에서 워터마킹 기술 활용 확산에도 기여할 것으로 기대합니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;학습 방지 기술&lt;/h2&gt;
+
+&lt;p&gt;생성형 AI(generative AI)란, 프롬프트에 대응해 이미지, 텍스트, 오디오 등 다양한 형식의 미디어를 생성하는 모델을 의미합니다. 특히 디퓨전(diffusion) 모델은 노이즈가 추가된 데이터에서 점진적으로 원본 이미지를 복원하는 과정을 통해 학습하는 대표적인 이미지 생성형 AI 모델로, 그중 SD(stable diffusion) 모델은 고해상도 이미지를 효율적으로 생성하며 접근성과 확장성 측면에서 우수해 다양한 애플리케이션에서 널리 활용되고 있습니다.&lt;/p&gt;
+
+&lt;p&gt;그러나 생성형 AI의 파급력이 커짐과 동시에, 타인의 저작권을 침해하기 위해 생성형 AI를 악용하는 사례가 근래 주목받고 있습니다. 예를 들어, 허가 없이 창작물을 활용해 사전 학습된 생성형 AI 모델에 파인튜닝(예: LoRA, Dreambooth)하면 해당 창작물의 스타일이나 콘텐츠를 쉽게 모방할 수 있는 모델이 생성됩니다. 이러한 모방 능력은 기존 창작물의 이미지나 가치를 훼손하는 악의적인 목적으로 악용될 가능성이 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/e5ddc616-2f86-4412-95f0-2a5ba629a7ac.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;생성형 AI를 이용한 무단 저작물 학습 및 스타일 모방 사례가 증가하면서 이에 대응 가능한 기술적 설루션의 필요성이 제기되었고, 이러한 배경에서 &lt;strong&gt;학습 방지 기술&lt;/strong&gt;이 제안되었습니다. 학습 방지 기술이란 생성형 AI 모델이 창작물의 스타일이나 콘텐츠를 모방하는 것을 방해하고 억제하는 기술로, 대표적으로는 이미지 내에 삽입된 보호 왜곡을 통해 구현됩니다. 보호 왜곡이란 모델의 정상적 동작을 방해하기 위해 입력 이미지에 미세한 수준의 변형을 추가하는 것을 의미합니다. 이는 일반 이미지 워터마킹과 유사하게 원본 이미지와 시각적 차이가 매우 적다는 특징이 있습니다.&lt;/p&gt;
+
+&lt;p&gt;학습 방지 처리된 창작물을 이용해 생성형 AI 모델을 파인튜닝하면, 학습된 모델은 다음과 같이 창작물의 스타일 모방에 실패하는 결과를 보입니다. 이를 통해 창작물의 무단 학습 및 악의적 활용을 효과적으로 방지할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/2f63f4fb-d617-4b6a-9d42-b3376c524bf9.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;학습 방지 기술은 최근 활발히 연구되어, Glaze와 PhotoGuard를 위시한 다양한 기법이 학술적으로 제안되었습니다. 기존 연구는 주로 보호 왜곡을 이미지에 적용하는 방식으로, 크게 인코더 기반과 디퓨전 기반의 두 가지 접근법으로 분류할 수 있습니다. 전자는 입력 이미지와 타겟 이미지의 잠재 표현(latent code) 간 거리를 감소시켜 모델이 타겟과 유사한 스타일의 이미지를 생성하도록 유도하는 방식이고, 후자는 디퓨전 모델의 노이즈 제거(denoising) 과정을 방해해 원본 이미지와 다른 샘플을 생성하도록 유도하는 방식입니다. 근래에는 논문 발표를 넘어 자체 개발한 설루션을 공개하거나 기존 창작 도구에 학습 방지 기능을 추가하는 등, 학술적 접근뿐 아니라 실질적 활용이 가능한 다양한 기술이 지속적으로 등장하고 있습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;요구 사항&lt;/h3&gt;
+
+&lt;p&gt;창작물 보호를 위한 필수 요구 사항을 명확히 설정하기 위해 기존의 학습 방지 기술의 성능을 체계적으로 분석하고, 공개된 설루션 및 도구에 대한 창작 커뮤니티의 반응을 추가로 조사해 성능 개선이 필요한 핵심 영역을 도출했습니다.&lt;/p&gt;
+
+&lt;p&gt;다음은 기존에 공개된 학습 방지 기술을 적용한 이미지입니다. 원본 이미지와 비교해 보호 왜곡에 따른 시각적 품질 열화가 뚜렷이 관찰되었습니다. 이러한 분석을 바탕으로, 학습 방지 기술의 비가시성 개선을 최우선 과제로 설정했습니다. 더불어, 기존에 공개된 도구에 대한 창작 커뮤니티 반응을 조사해, 학습 방지 성능의 안정성을 확보하는 동시에 처리 속도를 개선하는 것을 핵심 요구 사항으로 추가 선정했습니다. 이미지 한 장을 보호하는 데 소요되는 리소스가 일반 창작자의 관점에서는 매우 크기 때문에, 이 점을 개선해 적은 리소스로 사용 가능한 버전을 만들고자 했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/5ba33274-2d3f-40a2-8373-1e8ed048722e.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;h3 id="impasto"&gt;네이버 웹툰 학습 방지 기술 IMPASTO&lt;/h3&gt;
+
+&lt;p&gt;네이버 웹툰에서 연구한 학습 방지 기술은 &lt;strong&gt;IMPASTO&lt;/strong&gt;라고 명명했습니다. 이 이름은 다음과 같은 두 가지 의미를 내포하고 있습니다. 첫 번째는 &lt;strong&gt;비가시성을 고려한 스타일 모방 방어 기술&lt;/strong&gt;(IMperceptible Protection Against STyle imitatiOn; IMPASTO)의 약어로서의 의미입니다. 두 번째는 유화에서 물감을 두텁게 덧칠해 입체적 효과를 표현하는 예술 기법인 &lt;strong&gt;임파스토&lt;/strong&gt;(impasto)에서 착안한 것입니다. 이미지에 미세한 추가 신호를 삽입해 학습 방지 효과를 달성하는 이 기술과 해당 예술 기법 간의 유사성을 반영해 IMPASTO라는 명칭이 선정되었습니다.&lt;/p&gt;
+
+&lt;p&gt;이 글에서는 IMPASTO의 두 가지 버전을 소개합니다. IMPASTO-v1은 기존 기법과의 호환성을 유지하면서 비가시성을 향상하는 데 중점을 두었고 IMAPSTO-v2는 기존 기법에서 보호 왜곡 계산에 소요되는 시간을 획기적으로 개선하기 위해 개발되었습니다.&lt;/p&gt;
+
+&lt;h4 id="impastov1"&gt;IMPASTO-v1(비가시성 개선)&lt;/h4&gt;
+
+&lt;p&gt;기존 학습 방지 기술은 보호 왜곡을 원본 이미지에 적용하는 과정에서 비가시성이 저해되는 문제가 반복적으로 관찰되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/58ea78eb-ec97-4b15-869d-c82cb35632bc.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;왜곡에서 기인한 윤곽선 번짐 및 노이즈 패턴 등이 육안으로 쉽게 식별되었으며, 보호 강도를 낮추면 비가시성은 개선되나 학습 방지 성능이 약화되는 트레이드오프가 관찰되었습니다. 더불어, 얼굴과 같은 영역에만 국소적으로 학습 방지를 적용하는 경우, 모델이 비보호 영역에서 여전히 유효한 콘텐츠를 학습해 전체적인 학습 방지 성능이 저하되는 것을 확인했습니다.&lt;/p&gt;
+
+&lt;p&gt;IMPASTO-v1은 기존의 학습 방지 기술과 호환 가능한 형태를 유지하면서도, 영역별로 보호 강도를 적응적으로 조절하는 것이 핵심 콘셉트입니다. 이를 통해 동일하게 보호 왜곡을 적용하면서도 인지적으로 덜 민감한 영역에는 더욱 강한 학습 방지를 집중적으로 부여하고, 민감한 영역에서는 최소화해 비가시성과 학습 방지 성능의 균형을 달성하고자 했습니다. 이러한 과정에서 식별 최소차(just noticeable difference; JND) 개념을 도입해, 보호 강도 설계에 인간 시각 특성을 반영했습니다.&lt;/p&gt;
+
+&lt;p&gt;이러한 설계를 구체화하기 위해, IMPASTO-v1은 단일 JND 지표를 사용하는 대신 다음의 다섯 가지 JND 지표를 앙상블 방식으로 활용해 픽셀 단위의 인지 민감도를 추정하는 &lt;strong&gt;인지 영역 맵&lt;/strong&gt;(perceptual map)을 도입했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;LA(luminance adaptation)&lt;/li&gt;
+&lt;li&gt;CM(contrast masking)&lt;/li&gt;
+&lt;li&gt;CSF(contrast sensitivity function)&lt;/li&gt;
+&lt;li&gt;Stdev(standard deviation)&lt;/li&gt;
+&lt;li&gt;entropy&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;그리고 다섯 가지 JND 지표를 기반으로 인지 영역 맵을 생성할 때, 단순 산술 평균(average)을 적용하는 방식이 아닌 IWR(image-wise refinement) 방식을 채택해, 입력 이미지의 인지적 특성을 반영했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/375c85d3-9240-44d9-8971-5cc7ce54e77b.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;다음으로, 이미지 혹은 작품별로 보호 난이도가 다른 것을 관찰해 &lt;strong&gt;난이도 맵&lt;/strong&gt;(difficulty map)을 생성함으로써 보호 기능을 향상시켰습니다.&lt;/p&gt;
+
+&lt;p&gt;다음 그래프는 PhotoGuard를 20개의 작품에 적용했을 때의 보호 효율을 나타낸 것으로, 작품별로 보호 효율이 크게 달라짐을 확인할 수 있습니다. 일부 이미지는 낮은 강도만으로도 충분히 보호되는 반면, 다른 이미지는 동일한 보호 수준을 확보하기 위해 더 높은 강도가 요구되는 등 보호 난이도의 편차가 뚜렷하게 나타났습니다. 즉, 평균 점수(붉은 점선)는 개별 사용자가 체감하는 보호 효과를 제대로 반영하지 못하며, 단순 평균 지표만으로는 실제 보호 성능을 설명하기 어렵다는 것을 알 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/53f4c5eb-cf4c-464c-899d-7ac41a0865d3.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;이러한 특성을 반영하기 위해, IMPASTO-v1은 원본 이미지와 중간 보호본 사이의 LPIPS 거리를 활용해 난이도 맵을 계산했습니다. 난이도 맵은 각 영역이 추가 보호 강도를 얼마나 필요로 하는지를 추정해 보호 강도의 효율적 분배를 가능하게 합니다. 최종 산출된 난이도 맵을 인지 영역 맵과 결합해 영역별로 최적화된 강도를 적용함으로써, 보호 성능을 유지하면서도 불필요한 왜곡을 줄일 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;또한, 추가로 비가시성을 개선하기 위해 &lt;strong&gt;인지적 제약 집합&lt;/strong&gt;(perceptual constraint bank)을 도입했습니다. 이 제약 집합은 단일 픽셀 공간에만 제약을 두는 기존 방식과 달리, 다양한 특징 공간(feature space)에 동시에 제약을 적용해 더욱 효과적인 결과를 제공합니다. 특히 masked LPIPS, masked low-pass, CLIP 제약을 포함해 다중 잠재 공간(latent space)에서 비가시성을 제어해, 시각적 충실도를 높이면서도 강인성을 유지할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;IMPASTO-v1의 알고리즘 개요는 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/90a8c3dc-ed22-40f7-8461-aaefc7ff0b48.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;기존의 학습 방지 접근법은 대체로 보호 왜곡을 반복 최적화로 갱신하는 구조에 의존하는 반면, IMPASTO-v1은 인지 영역 맵과 난이도 맵을 기반으로 왜곡을 적응적으로 정제하고 제약 집합으로 이를 보완함으로써 더욱 정교하고 안정적으로 학습 방지를 수행합니다.&lt;/p&gt;
+
+&lt;h4 id="impastov2"&gt;IMPASTO-v2(처리 속도 개선)&lt;/h4&gt;
+
+&lt;p&gt;대부분의 기존 학습 방지 기술은 추론(inference) 시 보호 왜곡을 반복 과정(iterative process)으로 업데이트하는 방식을 채택했습니다. 일반적으로 원본 이미지와 타겟 스타일 간 잠재 표현의 거리를 줄이는 손실을 사용하며, 이는 VAE 인코더 기반 표현을 예로 들 수 있습니다. 이 과정에서 입력 이미지마다 업데이트가 여러 차례 이루어지므로 처리 시간이 길어져 실사용 워크플로에 부담이 되었고, 창작 커뮤니티에서도 빠른 추론의 필요성이 꾸준히 제기되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/542c0a97-0d35-4549-b2d0-424bcacd8d0b.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;범용적 적대적 왜곡(universal adversarial perturbation; UAP)은 보호 왜곡을 사전에 학습해 두고, 학습된 단일 왜곡을 추론 시에 즉시 적용하는 방법으로, 반복 과정을 생략해 속도를 크게 향상시킬 수 있습니다. 그러나 입력 이미지의 특성과 무관한 단일 왜곡에 의존하기 때문에 이미지별, 작품별 다양성을 반영하지 못해 기존의 이미지별 최적화 방식 대비 학습 방지 성능이 저하되는 한계가 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/46561556-f186-45f3-98b1-ec52e67518ac.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;기존 기법의 반복 과정으로 인한 속도 저하와, 입력 이미지와 관계 없이 단일 왜곡을 적용함으로써 발생하는 왜곡 표현력(capacity) 부족 문제를 모두 고려해, 처리 시간을 크게 단축하면서도 충분한 표현력을 확보할 수 있는 새로운 방법론이 필요했습니다.&lt;/p&gt;
+
+&lt;p&gt;IMPASTO-v2는 단일 왜곡으로 인한 왜곡 표현력 부족을 해소하기 위해 &lt;strong&gt;다중 학습 방지 왜곡&lt;/strong&gt;(mixture of perturbation; MoP)을 도입했습니다. 입력 및 타겟 샘플을 VAE 인코더에 통과시켜 얻은 잠재 코드를 k-means 클러스터링으로 분류한 뒤, 각 클러스터에 대해 서로 다른 k개의 다중 왜곡을 학습했습니다. 그리고 추론 시에는 선택 모듈이 입력의 잠재 표현을 해당 클러스터에 할당하고, 입력 이미지에 가장 적합한 왜곡을 적응형으로 선택함으로써 학습 방지 표현력을 확대합니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/876f1445-90a7-42ad-9f7e-687f3c4478da.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;실험 과정에서 타겟 이미지의 복잡도에 따른 성능 편차가 뚜렷하게 관찰되었습니다. 복잡도가 서로 다른 세 종류의 타겟 이미지를 기준으로 평가한 결과, 단순한 텍스처의 웹툰 계열 입력에서는 낮은 복잡도의 타겟이 더 잘 발현되었고, 실사 계열 입력에서는 높은 복잡도의 타겟이 더 안정적으로 발현되는 경향을 확인했습니다. 이를 통해 입력과 타겟 이미지 간의 구조적 유사성을 반영한 조건부 선택 메커니즘의 필요성을 도출했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/64ffaab6-d3bd-4684-8830-17ac32984f0c.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;이러한 관찰을 반영해 &lt;strong&gt;적응형 타겟 보호&lt;/strong&gt;(adaptive targeted protection) 개념을 도입했습니다. 타겟 복잡도별로 서로 다른 MoP를 별도 학습하고, 추론 시에는 입력에 최적화된 타겟과 대응되는 왜곡을 선택해 적용하는 방식입니다. 선택 함수 H는 VAE 잠재 공간에서의 엔트로피를 사용해 입력 이미지와 엔트로피가 가장 유사한 타겟을 선택하며, 선택된 타겟에 대응되는 왜곡 세트를 적용함으로써 입력 및 타겟 이미지의 정합성을 높였습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/a76fe664-7c1c-43d2-bd68-a1fe6296abf0.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;끝으로, 추가 비가시성 개선을 위해 추론 과정에서 먼저 선택된 MoP로 임시 보호 이미지를 1차 생성하고, LPIPS를 이용해 원본과 임시 보호본 간의 공간적 인지 맵을 계산했습니다. 이 인지 맵은 식별이 쉬운 영역을 완화하고 식별이 어려운 영역에 더 많은 예산을 배분하도록 왜곡을 가중 및 마스킹하는 데 사용되었습니다. 결과적으로, 시각적 자연스러움은 향상되면서도 보호 성능의 저하를 최소화하는 파이프라인을 구성할 수 있었습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;성능 평가&lt;/h3&gt;
+
+&lt;h4 id="impastov1"&gt;IMPASTO-v1&lt;/h4&gt;
+
+&lt;p&gt;먼저 비가시성 측면에서, 기존 학습 방지 기술(예: PhotoGuard, AdvDM)에 IMPASTO-v1 add-on 모듈을 적용했을 때 시각적 품질 저하가 효과적으로 완화되는 것을 확인했습니다. 특히 웹툰과 같이 단순하고 평탄한 영역이 많은 콘텐츠에서는 미세한 보호 왜곡이 쉽게 드러나는데 IMPASTO-v1을 적용한 경우 이러한 왜곡이 현저히 줄어들어, 웹툰 도메인에서 학습 방지 기술이 충족해야 할 필수 요건인 원본 유사성 유지를 달성했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/4203782b-fd2c-42c2-9cfe-4dd0fbbfe149.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;다음으로 잔차 데이터 시각화에서도 IMPASTO-v1 적용 시 에너지 레벨이 낮게 나타나, 기존 학습 방지 기술 대비 왜곡으로 인한 변화량이 적음을 확인했습니다. 또한 보호 이미지를 활용해 학습한 모델(Stable Diffusion w/ LoRA)의 재생성 결과를 비교해, IMPASTO-v1 적용 전후로 학습 방지 성능이 유지됨을 확인했습니다. 사용자 기반 A/B 테스트를 통한 정성적 평가에서도 제안 기법 적용 시 보호 이미지의 주관적 품질이 개선되었음이 입증되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/c122c1a4-1c01-4638-8bfd-1d13b8a801f8.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;정량 평가에서도 기존 네 가지 학습 방지 기술에 IMPASTO-v1을 결합하는 형태로 적용했을 때 일관된 성능 향상이 나타났습니다. DISTS, PieAPP, TOPIQ의 주요 비가시성 지표에서 비가시성에 대한 개선이 확인되었으며, NIQE, BRISQUE, FID와 같은 학습 방지 성능 지표에서도 상대적으로 더 약한 왜곡이 더해졌음에도 불구하고 학습 방지 성능은 안정적으로 유지(비슷하거나 개선)되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/1d2bd7c6-d08c-4159-bbfa-8dd24207cc1c.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;이러한 결과는 IMPASTO-v1이 범용적인 add-on 모듈로서 다양한 기법과 도메인에 적용 가능하며, 시각적 품질과 보호 효과 간의 균형을 효과적으로 달성함을 시사합니다.&lt;/p&gt;
+
+&lt;h4 id="impastov2"&gt;IMPASTO-v2&lt;/h4&gt;
+
+&lt;p&gt;IMPASTO‑v2는 추론 속도 측면에서 뚜렷한 우위를 보였습니다. 512×512 해상도의 이미지 1장 처리를 기준으로 CPU 2.9초, A100 GPU 0.04초를 달성해, 기존의 학습 방지 기술(CPU/GPU 처리 시간: AdvDM 1210초/35초, PhotoGuard 370초/7초, Anti‑DB 7278초/225초, Mist 1440초/40초, SDST 1410초/24초) 대비 처리 시간을 매우 크게 단축했습니다. 해상도별 처리 시간 그래프에서도 IMPASTO‑v2의 처리 시간이 일관되게 가장 짧은 것을 확인할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/5be231a2-f432-4be6-a914-a5138c266182.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;Object, Face, Painting, Cartoon의 네 가지 도메인에서 비가시성(DISTS)과 학습 방지 성능(FID)을 비교해보겠습니다. IMPASTO‑v2는 네 도메인에서 대부분 최저 혹은 최저권의 DISTS 값을 보였습니다(값이 낮을수록 좋음). FID 역시 Object와 Face 도메인에서 최고 수준을 달성했고 Painting과 Cartoon 도메인에서도 기존의 최고치와 근접한 경쟁적 성능을 보였습니다(값이 높을수록 좋음).&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/b11d7ccb-5597-475a-82f2-832dde0ffd28.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;p&gt;요약하면, IMPASTO‑v2는 극단적으로 짧은 처리 시간을 달성하면서도 다양한 도메인에서 양호한 비가시성 및 학습 방지 성능을 동시에 유지했습니다.&lt;/p&gt;
+
+&lt;p&gt;끝으로, 정성 평가에서도 장점을 보였습니다. 확대해 비교했을 때 보호 왜곡으로 인한 시각적 열화가 타 기법 대비 완화되어 시각적 품질 저하가 크지 않았고, 재생성 결과를 비교했을 때에도 의도한 타겟 이미지의 속성(예: 샘플에서의 반복되는 작은 입자)이 안정적으로 반영되는 양상을 보였습니다. 즉, 사용자가 보기에 왜곡이 거의 눈에 띄지 않으면서도 타겟 이미지의 속성이 안정적으로 반영된다고 판단할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/09/4aa7da49-9f31-4bee-8309-7137ac7e7269.png" alt="image" /&gt;&lt;/p&gt;
+
+&lt;h3 id=""&gt;운영 현황&lt;/h3&gt;
+
+&lt;p&gt;학습 방지 연구는 현재 워터미킹에 비해 상대적으로 연구의 성숙도가 낮은 단계로, 지속적인 연구 개발과 기술적 발전이 필요합니다. IMPASTO-v1과 v2는 각각 &lt;a href="https://arxiv.org/abs/2403.19254"&gt;IEEE Transactions on Multimedia 게재 승인&lt;/a&gt;과 &lt;a href="https://openaccess.thecvf.com/content/CVPR2025/papers/Ahn_Nearly_Zero-Cost_Protection_Against_Mimicry_by_Personalized_Diffusion_Models_CVPR_2025_paper.pdf"&gt;CVPR 2025 발표&lt;/a&gt;라는 학술적 성과를 거둬, 학문적으로 의미 있을 뿐 아니라 실질적으로 창작자 보호라는 사회적 요구에도 부합함을 보였습니다. 네이버 웹툰은 앞으로도 자사 플랫폼에서 활동하는 창작자의 우려를 해소할 수 있는 기술 개발에 꾸준히 힘쓰고자 합니다.&lt;/p&gt;
+
+&lt;p&gt;현재는 IMPASTO-v2 데모 공개를 검토 및 준비하고 있습니다. 데모 공개 후 창작자와 사용자의 피드백을 수렴하고 이를 기반으로 지속적으로 성능을 개선해, 궁극적으로 건전한 창작 생태계 형성에 기여하는 것을 목표로 하고 있습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;마치며&lt;/h2&gt;
+
+&lt;p&gt;네이버 웹툰은 창작 생태계 보호를 위해 워터마킹과 학습 방지 기술 연구를 지속적으로 발전시킬 계획입니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;워터마킹&lt;/strong&gt;: 현재 TOONRADAR 시스템에서 운영 중인 워터마킹 모델을 고도화하고 확장해 동영상 등 다양한 도메인으로 워터마크 적용 범위를 확대할 예정이며, 이를 위한 실무 운영 환경과의 연동도 지속적으로 강화해 불법 유출 방지에 기여할 예정입니다.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;&lt;strong&gt;학습 방지 기술&lt;/strong&gt;: IMPASTO의 데모를 공개하고 사용자 피드백을 적극 수렴해 방어 성능을 고도화할 예정입니다. 또한 근래 대두되고 있는 학습 방지 무력화 공격에 대해서도 대응 가능한 방법론을 탐색할 예정입니다.&lt;/p&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;이러한 방향성을 통해 네이버 웹툰은 창작자의 권리를 효과적으로 보호하고, 더욱 건전한 창작 생태계를 구축하는 데 기여할 것으로 기대합니다.&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <title>Iceberg Low-Latency Queries with Materialized Views  (feat. 실시간 거래 리포트)</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/9290684" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/9290684</id>
+    <updated>2025-12-01T15:26:47Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/89476860?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;본 영상에서는 “실시간 거래 리포트를 어떻게 하면 사용자가 원하는 다양한 조건으로 빠르게 조회할 수 있을까?” 라는 질문에서 출발한 기술적 여정을 다룹니다.&lt;/li&gt;
+&lt;li&gt;단순히 데이터를 쌓고 조회하는 단계를 넘어, 거래 데이터의 최신성과 응답 속도, 그리고 확장성을 동시에 확보하기 위한 여러 시도를 공유합니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;데이터 플랫폼 엔지니어 / 데이터 아키텍트 – 대용량 실시간 데이터 처리 및 저지연 설계에 관심 있는 분&lt;/li&gt;
+&lt;li&gt;분석 플랫폼 운영자 / BI 개발자 – 다차원 필터 조회 속도 및 Freshness 향상 전략을 찾고 있는 분&lt;/li&gt;
+&lt;li&gt;Spark, Iceberg, StarRocks 활용자 – 실제 조합 운영 사례를 통해 운영 팁을 얻고자 하는 분&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ol&gt;
+&lt;li&gt;소개 (Introduction)  &lt;/li&gt;
+&lt;li&gt;문제 정의 (Problem Definition)  &lt;/li&gt;
+&lt;li&gt;도전 과제 (Challenges)  &lt;/li&gt;
+&lt;li&gt;리서치 여정 (Research Journey)  &lt;/li&gt;
+&lt;li&gt;아키텍처 개요 (Architecture Overview)  &lt;/li&gt;
+&lt;li&gt;구성 요소 (Components)  &lt;/li&gt;
+&lt;li&gt;결과 및 성능 (Results &amp;amp; Performance)&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>[DAN25] 기술세션 영상이 모두 공개되었습니다.</title>
+    <link rel="alternate" href="https://d2.naver.com/news/9333656" />
+    <category term="news" />
+    <id>https://d2.naver.com/news/9333656</id>
+    <updated>2025-11-28T17:10:19Z</updated>
+    <content type="html">&lt;p&gt;&lt;img src="/content/images/2025/11/---------.gif" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;지난 11월 6일, 7일 양일간 진행된 팀네이버 컨퍼런스 DAN25에서는 네이버의 기술뿐만 아니라 크리에이티브, 서비스와 비즈니스를 유기적으로 융합해 일상의 작은 변화부터 새로운 생태계로의 도약까지, 끝없이 확장되는 경험의 로드맵을 함께 나누는 자리로 진행되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;현장에서는 AI 에이전트, 소버린 AI, AX 등 네이버가 제시하는 미래 전략과 실제 서비스·비즈니스에 적용된 다양한 사례들이 공유&lt;/strong&gt;되며, 참가자들이 변화된 사용자 경험을 직접 확인하고 인사이트를 얻을 수 있었습니다.&lt;/p&gt;
+
+&lt;p&gt;컨퍼런스에서 선보인 다양한 세션과 발표들은 많은 관심을 모았는데요, 현장의 그 생생한 분위기를 온라인에서도 만나볼 수 있도록 모든 발표영상이 &lt;a href="https://dan.naver.com/25"&gt;DAN25 홈페이지&lt;/a&gt;와 &lt;a href="https://tv.naver.com/playnaver"&gt;NAVER 네이버 TV 채널&lt;/a&gt;에 공개 되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/-----------2025-11-27-------11-05-01.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h4 id="35"&gt;총 35개의 기술세션 중&lt;/h4&gt;
+
+&lt;p&gt;&lt;strong&gt;오프라인 현장에서 가장 참여율(참석 및 질문)이 높았던 기술 세션 5개&lt;/strong&gt;를 뽑아보았습니다.&lt;/p&gt;
+
+&lt;h3 id="dan25techtop5"&gt;&lt;strong&gt;&lt;mark&gt;[DAN25 Tech 세션 TOP 5]&lt;/mark&gt;&lt;/strong&gt;&lt;/h3&gt;
+
+&lt;h4 id="1personaaillm_naverhttpsdannavercom25sessions713"&gt;&lt;a href="https://dan.naver.com/25/sessions/713"&gt;&lt;strong&gt;1. 네이버 PersonA - 지금 나를 이해하는 AI (부제 : LLM 기반 사용자 메모리 구축과 실시간 사용자 로그 반영 시스템 구현)&lt;/strong&gt;_NAVER 발견/탐색 프로덕트 임홍준, 김창봉, 최수진 님&lt;/a&gt;&lt;/h4&gt;
+
+&lt;p&gt;ChatGPT, Google Gemini와 같은 대화형 AI 서비스를 사용해 보면, 바로 이전 대화만 기억하는 것이 아니라, 수개월간의 대화 기록을 요약·저장하여 사용자와의 대화 맥락을 이어가는 모습을 볼 수 있습니다. 또한 ‘메모리’ 보기 기능을 통해, AI가 나에 대해 무엇을 기억하고 있는지도 확인할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;네이버는 대화형 AI 서비스는 아닙니다. 그럼에도 불구하고, 사용자는 네이버의 다양한 서비스를 이용하면서 자신에 대한 수많은 단서를 남기고 있습니다. 직접적인 대화는 아니지만, 이러한 파편적인 기록들을 사용자와 네이버 간의 ‘간접적인 대화’로 보고, 이를 기반으로 사용자 메모리를 구축하려는 프로젝트가 바로 네이버 PersonA입니다.&lt;/p&gt;
+
+&lt;p&gt;네이버 PersonA 프로젝트에서는 사용자 메모리를 구축하기 위해 대규모 언어모델(LLM)을 적극 활용했습니다. 또한 적절한 시점에, 사용자에게 의미 있는 제안을 전달하기 위해 LLM의 추론 능력을 결합했습니다.&lt;/p&gt;
+
+&lt;p&gt;이번 발표에서는 LLM을 활용한 네이버의 사용자 메모리 구축 과정과, 이를 기반으로 제안 서비스를 어떻게 설계하고 구현했는지 공유합니다. 그 과정에서 마주한 고민들, 여러 선택지들 사이에서 해법을 찾아간 과정, 그리고 대규모 사용자에게 실시간 로그를 반영하며 서비스를 안정적으로 제공하기 위해 어떤 기술적·서비스적 대안을 선택했는지도 함께 말씀드리겠습니다.&lt;/p&gt;
+
+&lt;p&gt;아직 초기 단계이지만, 네이버는 단계적인 로드맵을 가지고 AI 에이전트 서비스로 진화해 나가고 있습니다. 이번 프로젝트는 그 의지를 담은 실험적이면서도 중요한 시도라 할 수 있습니다.
+&lt;br/&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id="2llm_naverhttpsdannavercom25sessions681"&gt;&lt;a href="https://dan.naver.com/25/sessions/681"&gt;&lt;strong&gt;2. 데이터 속 숨은 트렌드, LLM이 답하다 : 랭킹 기반 플레이스 트렌드 분석 시스템&lt;/strong&gt;_NAVER 플레이스 프로덕트 김현우, 손재원 님&lt;/a&gt;&lt;/h4&gt;
+
+&lt;p&gt;"지금 사람들이 가장 많이 찾는 장소는 어디일까요?" 본 발표에서는 실시간 사용자 데이터를 기반으로 '지금 뜨는 장소'를 찾아내는 랭킹 기반 플레이스 트렌드 분석 시스템을 소개합니다.&lt;/p&gt;
+
+&lt;p&gt;단순히 많이 찾는 곳을 넘어, '급등'과 '지속'의 균형을 맞춘 랭킹 알고리즘을 통해 진정으로 의미 있는 트렌드를 포착하는 노하우를 공유합니다. 더 나아가 텍스트 마이닝과 LLM을 활용하여 "왜 이 장소가 지금 뜨는가?"에 대한 이유까지 키워드로 추출하는 과정을 살펴봅니다.&lt;/p&gt;
+
+&lt;p&gt;데이터 속 숨겨진 트렌드를 발견하고, 그 이유까지 설명 가능한 인사이트를 얻어가는 시간을 가져보세요.
+&lt;br/&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id="3llm_navercloudhcxapplicationnaverhttpsdannavercom25sessions724"&gt;&lt;a href="https://dan.naver.com/25/sessions/724"&gt;&lt;strong&gt;3. 검색 서비스에 최적화된 LLM 만들기: 데이터, 학습, 서비스 적용 사례&lt;/strong&gt;_NAVER Cloud HCX Application 신원광, 권유환 님. NAVER 검색 플랫폼 권오준, 백지혜 님&lt;/a&gt;&lt;/h4&gt;
+
+&lt;p&gt;범용 LLM은 강력하지만 매일 수십억 건의 질문과 답을 다루는 실제 검색 서비스에 그대로 적용하기에는 한계가 있다. 본 발표에서는 "검색 서비스 특화 LLM"을 만들고 실제 서비스에 적용해본 경험담을 공유한다. 검색 로그에서 출발한 데이터 가공 레시피 적용과 다양한 데이터 조합 실험, 특히 기존 범용 성능을 유지하면서도 서비스 맞춤 기능을 끌어올린 실험 결과와 데이터 최적화 노하우를 공유한다.&lt;/p&gt;
+
+&lt;p&gt;실제 서비스 적용 관점에서는 보다 신뢰성있는 검색 결과를 사용자에게 제공하기 위한 AuthGR과 전통적인 정보 검색 과정을 하나로 통합해 제시하는 AI briefing 을 소개한다. 이를 통해 범용 LLM 대비 검색 서비스 특화 모델의 효용성을 확인할 수 있으며, 네이버가 검색 품질 개선을 위해 갖고있는 고민과 앞으로의 방향성을 엿볼 수 있다.
+&lt;br/&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id="4crmux_naverwebtoonmlplatformhttpsdannavercom25sessions690"&gt;&lt;a href="https://dan.naver.com/25/sessions/690"&gt;&lt;strong&gt;4. 실시간 추천-CRM 통합 모델로 완성하는 개인화&lt;/strong&gt; UX_NAVER WEBTOON ML Platform 김회인, 이성훈 님&lt;/a&gt;&lt;/h4&gt;
+
+&lt;p&gt;네이버 시리즈는 개인화 UX를 위해 추천부터 CRM까지 다양한 영역에 ML 모델을 활용하고 있습니다. 하지만 여러 모델들이 추가되면서 모델 관리의 복잡성이 커지고, 모델 간 일관성을 유지하기 어려운 한계가 드러났습니다.&lt;/p&gt;
+
+&lt;p&gt;동시에 CRM 모델 중 일부는 실시간으로 처리되지 않는 기능이 있어 개선이 필요한 상황이었습니다. 이러한 문제를 해결하기 위해 모델 개발 관점에서는 추천과 CRM 모델을 하나의 통합 프레임워크로 설계하기로 결정하였고, 모델 서빙 관점에서는 모든 모델의 결과를 실시간으로 받아오기 위해 API 기반 서빙 아키텍처를 구축하기로 결정하였습니다.&lt;/p&gt;
+
+&lt;p&gt;본 발표에서는 네이버 시리즈에 실제 적용된 사례를 중심으로, 추천-CRM 모델 통합 과정과 배치 기반에서 실시간 추론 체계로 전환한 경험을 공유합니다. 대규모 서비스 환경에서 개인화 경험을 고도화하기 위한 모델링/시스템 설계의 실제적인 고민과 해법을 함께 나누고자 합니다.
+&lt;br/&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id="5_naverhttpsdannavercom25sessions693"&gt;&lt;a href="https://dan.naver.com/25/sessions/693"&gt;&lt;strong&gt;5. 하루 수백억 건을 처리하는 똑똑한 로그 파이프라인 만들기: 비용·성능·안정성 삼박자&lt;/strong&gt;_NAVER 검색 플랫폼 김완호 님&lt;/a&gt;&lt;/h4&gt;
+
+&lt;p&gt;네이버 전사 로그(최대 초당 수백만건, 하루 수백억건의 로그)를 수집/처리하는 로그 파이프라인 Logiss를 소개하고, Logiss에서 겪은 문제점들과 해결책들을 공유합니다.&lt;/p&gt;
+
+&lt;p&gt;Storm + kafka 환경에서 multi topology를 적용하는 방법과 이를 통해 안정적인 무중단 배포가 가능해진 파이프라인과 지능형 파이프라인의 도입으로 낮시간의 피크 트래픽을 한가한 시간으로 분산시킨 방법, 장애 상황에서 로그의 우선 순위에 따른 차등된 처리 방식, 샘플링 기능으로 저장소를 효율적으로 이용할 수 있게된 방법을 알려드립니다.&lt;/p&gt;
+
+&lt;h4 id="dan25techhttpsdannavercom25sessionsday2"&gt;&lt;a href="https://dan.naver.com/25/sessions#DAY2"&gt;[DAN25] Tech 세션 영상 더 보기 &gt;&gt;&lt;/a&gt;&lt;/h4&gt;</content>
+  </entry>
+  <entry>
+    <title>경험이 쌓일수록 똑똑해지는 네이버 통합검색 LLM Devops Agent</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/4199466" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/4199466</id>
+    <updated>2025-11-27T15:29:43Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/89197961?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;네이버 통합 검색에서 더 나은 장애 대응 프로세스를 위해 LLM Agent를 활용하는 방식에 대해 소개합니다.&lt;/li&gt;
+&lt;li&gt;Agent 를 어떤 방식으로 구성하고 구축했는지, 어떻게 평가하고 활용하고 있는지를 자세히 소개합니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;네이버 검색에서 장애 감지와 분석에 대해 궁금하신 분&lt;/li&gt;
+&lt;li&gt;LLM을 활용한 Agent 구성을 고민하시는 분&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ol&gt;
+&lt;li&gt;기존 장애 대응 프로세스 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;네이버 검색 흐름&lt;/li&gt;
+&lt;li&gt;기존 장애대응 프로세스&lt;/li&gt;
+&lt;li&gt;기존 방식의 문제점&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Devops Agent v1 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;설계&lt;/li&gt;
+&lt;li&gt;v1 구조&lt;/li&gt;
+&lt;li&gt;v1 소개&lt;/li&gt;
+&lt;li&gt;현재 SW stack&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Devops Agent v2 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;v1의 한계&lt;/li&gt;
+&lt;li&gt;v2 구조&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;시스템 동작과 특징 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;Trigger Queue&lt;/li&gt;
+&lt;li&gt;이상 탐지 방법&lt;/li&gt;
+&lt;li&gt;평가&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;우리가 풀어가고 있는 문제들 &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;알람 및 컨텍스트 확대&lt;/li&gt;
+&lt;li&gt;액션 추천&lt;/li&gt;
+&lt;li&gt;지속 가능한 Devops Agent&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>AI와 함께하는 프로젝트 자동화 : 더 빠르고, 더 스마트하게</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/3691494" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/3691494</id>
+    <updated>2025-11-26T14:50:43Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/89131408?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;로컬 환경에서 Ollama LLM과 mcp-agent를 연결해 빌드 실패 분석, 크래시 로그 요약, Slack 자동 리포트까지 구현했습니다.&lt;/li&gt;
+&lt;li&gt;AI가 단순한 도구가 아닌, 프로젝트의 자동화 동료가 되는 과정을 공유합니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;로컬 LLM(Ollama)과 오픈소스 mcp-agent 를 활용한 AI 자동화 시스템 구축에 관심 있는 개발자&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;AI와 자동화를 연결하기&lt;/li&gt;
+&lt;li&gt;LLM을 활용한 빌드 실패 알림 자동화&lt;/li&gt;
+&lt;li&gt;LLM을 활용한 크래시 모니터링 자동화&lt;/li&gt;
+&lt;li&gt;Slack with LLM&lt;/li&gt;
+&lt;li&gt;LLM &amp;amp; MCP 면 만능일까? &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>@RequestCache: HTTP 요청 범위 캐싱을 위한 커스텀 애너테이션 개발기</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/7610642" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/7610642</id>
+    <updated>2025-11-26T14:51:32Z</updated>
+    <content type="html">&lt;p&gt;웹 애플리케이션을 개발하다 보면 하나의 HTTP 요청 내에서 동일한 외부 API를 여러 번 호출하거나 동일한 연산을 반복하는 경우가 종종 발생합니다. 이러한 중복 호출은 응답 시간을 증가시키고 불필요한 네트워크 오버헤드를 유발합니다.&lt;/p&gt;
+
+&lt;p&gt;이 글에서는 이러한 문제를 해결하기 위해 개발한 &lt;code&gt;@RequestCache&lt;/code&gt;라는 커스텀 애너테이션의 개발 과정과 그 과정에서 겪은 시행착오를 공유하고자 합니다.&lt;/p&gt;
+
+&lt;h2 id="requestcache"&gt;@RequestCache 소개&lt;/h2&gt;
+
+&lt;p&gt;다음과 같은 서비스 구조를 가정해 보겠습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/1-1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;위 구조에서 &lt;code&gt;OrderValidationService&lt;/code&gt;, &lt;code&gt;PaymentService&lt;/code&gt;, &lt;code&gt;NotificationService&lt;/code&gt; 각각에서 사용자의 프로필 정보가 필요하다면, 세 서비스 모두 프로필 조회 API를 호출합니다. 이러한 중복 호출은 &lt;strong&gt;응답 시간 증가&lt;/strong&gt;, &lt;strong&gt;외부 서버의 부하&lt;/strong&gt;, &lt;strong&gt;리소스 낭비&lt;/strong&gt; 등의 문제를 야기합니다.&lt;/p&gt;
+
+&lt;p&gt;이러한 문제를 해결하기 위해 @RequestCache를 개발했습니다. &lt;code&gt;@RequestCache&lt;/code&gt;는 &lt;strong&gt;HTTP 요청 범위(request scope) 내에서 메서드의 호출 결과를 캐싱&lt;/strong&gt;하는 Spring 기반의 커스텀 애너테이션입니다. 하나의 HTTP 요청 내에서 중복된 외부 API 호출이나 반복적인 연산을 방지하여 성능을 개선할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;@RequestCache&lt;/code&gt;는 다음과 같은 특징이 있습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;RequestAttribute 기반의 캐시 저장&lt;/strong&gt;: &lt;code&gt;RequestAttribute&lt;/code&gt;를 사용하여 요청별로 독립적인 캐시 인스턴스를 보장합니다. &lt;code&gt;RequestAttribute&lt;/code&gt;는 내부에서 ThreadLocal을 사용하므로 각 스레드의 인스턴스가 독립적이며 스레드 간 격리가 보장됩니다.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;자동 생명주기 관리&lt;/strong&gt;: 캐시와 HTTP 요청의 생명주기가 같으므로 별도로 TTL(time to live)을 관리할 필요가 없습니다. 요청 처리 완료 시 Spring의 &lt;code&gt;FrameworkServlet&lt;/code&gt;이 자동으로 &lt;code&gt;RequestAttribute&lt;/code&gt;를 정리해 메모리 누수를 방지합니다.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;간편한 사용법&lt;/strong&gt;: 애너테이션 하나로 손쉽게 메서드 호출 결과를 캐싱할 수 있습니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;다음과 같이 &lt;code&gt;@RequestCache&lt;/code&gt;를 선언하면, 하나의 HTTP 요청 내에서 같은 &lt;code&gt;userId&lt;/code&gt;로 &lt;code&gt;findProfileByUserId()&lt;/code&gt;을 여러 번 호출하는 경우에 실제 외부 API는 한 번만 호출되고 이후에는 캐시된 결과가 반환됩니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;@Service
+@RequiredArgsConstructor
+public class ProfileService {
+    private final ProfileApiClient profileApiClient;
+
+    @RequestCache(cacheNames = "findProfileByUserId")
+    public Profile findProfileByUserId(Long userId) {
+        // 외부 API 호출
+        return profileApiClient.findProfileByUserId(userId);
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=""&gt;대안 검토&lt;/h2&gt;
+
+&lt;p&gt;본격적인 개발에 앞서 &lt;code&gt;@RequestCache&lt;/code&gt;가 정말 필요한지 검증하기 위해 다음 두 가지 대안을 검토했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;응답 객체를 파라미터로 계속 넘겨주기&lt;/li&gt;
+&lt;li&gt;Redis/Local 캐시를 사용하고 TTL을 적절하게 설정하기&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=""&gt;응답 객체를 파라미터로 넘기는 방식의 한계&lt;/h3&gt;
+
+&lt;p&gt;첫 번째 대안은 응답 객체를 메서드 파라미터로 계속 전달하는 것입니다. 하지만 이 방식은 다음과 같은 문제점이 있습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;호출 깊이가 깊은 경우&lt;/h4&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;@RestController
+@RequiredArgsConstructor
+public class TransactionController {
+    private final OrderValidationService orderValidationService;
+    private final PaymentService paymentService;
+    private final NotificationService notificationService;
+    private final ProfileService profileService;
+
+    @PostMapping("/order")
+    public void processOrder(@RequestParam Long orderId, @RequestParam Long userId) {
+        Profile profile = profileService.getProfile(userId);
+
+        // ... 주문 검증 Profile 전달
+        orderValidationService.validate(orderId, profile);
+
+        paymentService.purchase(orderId, profile);
+        notificationService.noti(orderId, profile);
+    }
+}
+
+@Service
+@RequiredArgsConstructor
+public class OrderValidationService {
+    private final DeliveryValidator deliveryValidator;
+
+    public void validate(Long orderId, Profile profile) {
+        // ... 주문 검증 로직 (Profile 미사용)
+
+        deliveryValidator.validateDeliveryArea(orderId, profile);  // Profile 전달
+    }
+}
+
+@Service
+@RequiredArgsConstructor
+public class DeliveryValidator {
+    private final PricingCalculator pricingCalculator;
+
+    public void validateDeliveryArea(Long orderId, Profile profile) {
+        // ... 배송 지역 검증 로직 (Profile 미사용)
+        Money fee = pricingCalculator.calculateFee(orderId, profile);  // Profile 전달
+        // ... 배송비 검증
+    }
+}
+
+@Service
+@RequiredArgsConstructor
+public class PricingCalculator {
+
+    public Money calculateFee(Long orderId, Profile profile) {
+        // 실제로 Profile을 사용하는 곳은 여기뿐
+        if (profile.isPremiumMember()) {
+            return Money.ZERO;
+        }
+        return Money.of(3000);
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;이 코드에서 실제로 &lt;code&gt;Profile&lt;/code&gt;을 사용하는 곳은 &lt;code&gt;PricingCalculator.calculateFee()&lt;/code&gt; 메서드뿐입니다. 하지만 이 데이터를 전달하기 위해 &lt;code&gt;OrderValidationService&lt;/code&gt; → &lt;code&gt;DeliveryValidator&lt;/code&gt; → &lt;code&gt;PricingCalculator&lt;/code&gt;의 모든 메서드가 Profile 파라미터를 선언해야 합니다.&lt;/p&gt;
+
+&lt;p&gt;즉, 응답 객체를 파라미터로 넘기는 방식은 호출 깊이가 깊은 경우에 다음과 같은 문제가 있습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;중간 계층(&lt;code&gt;OrderValidationService&lt;/code&gt;, &lt;code&gt;DeliveryValidator&lt;/code&gt;)은 응답 객체를 사용하지 않지만 파라미터로 받아야 함&lt;/li&gt;
+&lt;li&gt;호출 깊이가 깊어질수록 파라미터 전달이 복잡해짐&lt;/li&gt;
+&lt;li&gt;새로운 데이터가 필요할 때마다 모든 메서드 시그니처를 수정해야 함&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;전략 패턴을 사용하는 경우&lt;/h4&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;public interface DiscountPolicy {
+    Money calculate(Long orderId, Profile profile);
+}
+
+@Component
+public class MemberGradeDiscountPolicy implements DiscountPolicy {
+    @Override
+    public Money calculate(Long orderId, Profile profile) {
+        // Profile의 등급 정보를 사용
+        return switch (profile.getGrade()) {
+            case GOLD -&amp;gt; Money.of(5000);
+            case SILVER -&amp;gt; Money.of(3000);
+            default -&amp;gt; Money.ZERO;
+        };
+    }
+}
+
+@Component
+public class CouponDiscountPolicy implements DiscountPolicy {
+    private final CouponRepository couponRepository;
+
+    @Override
+    public Money calculate(Long orderId, Profile profile) {
+        // Profile을 사용하지 않지만 인터페이스 때문에 선언해야 함
+        return couponRepository.findByOrderId(orderId)
+            .map(Coupon::getDiscountAmount)
+            .orElse(Money.ZERO);
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;인터페이스에 Profile을 추가하면, 실제로 Profile이 필요하지 않은 &lt;code&gt;CouponDiscountPolicy&lt;/code&gt;도 Profile을 파라미터로 받아야 합니다. 이는 불필요한 의존성을 만들고 인터페이스의 유연성을 해칩니다.&lt;/p&gt;
+
+&lt;p&gt;즉, 파라미터 전달 방식은 호출 깊이가 깊거나 전략 패턴을 사용하는 경우에 적용하기 어렵습니다.&lt;/p&gt;
+
+&lt;h3 id="redislocalttl"&gt;Redis/Local 캐시의 TTL 설정 딜레마&lt;/h3&gt;
+
+&lt;p&gt;두 번째 대안은 Redis나 Local 캐시를 사용하고 적절한 TTL을 설정하는 것입니다. 하지만 이 방식도 다음과 같은 문제가 있습니다.&lt;/p&gt;
+
+&lt;h4 id="ttl"&gt;TTL이 너무 짧은 경우&lt;/h4&gt;
+
+&lt;p&gt;TTL이 너무 짧으면, 하나의 요청 내에서 같은 데이터를 두 번 조회하는 경우에 두 번째 조회 시 첫 번째 캐시가 만료되어 다시 API를 호출해야 합니다. 이는 중복 호출을 방지하려는 원래 목적을 달성하지 못합니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/2-1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;예를 들어, 요청 처리 시간이 5초인데 TTL을 3초로 설정한 경우 다음과 같이 동작합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Request A 시작(0초)
+├─ Profile 조회(0.1초) - 캐시 미스, 캐시에 저장(3초 후 만료)
+├─ 비즈니스 로직 처리(0.1~3.5초)
+├─ Profile 조회(3.5초) - TTL 만료로 캐시 미스(중복 호출 발생)
+└─ Request A 종료(5초)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id="ttl"&gt;TTL이 너무 긴 경우&lt;/h4&gt;
+
+&lt;p&gt;TTL을 길게 설정해도 만료 시점에 따라 캐시 효과가 불안정합니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/3-1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;요청 B는 요청 A에서 생성된 캐시를 사용합니다. @RequestCache의 목적은 동일 요청 내 중복 호출 방지이므로, 논리적으로 서로 다른 요청 간에 캐시를 공유하는 것은 의도하지 않은 동작입니다. 요청 C에서는 캐시가 만료되어 다시 캐시 미스가 발생합니다.&lt;/p&gt;
+
+&lt;p&gt;예를 들어, 요청 처리 시간이 3초인데 TTL을 10초로 설정한 경우 다음과 같이 동작합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;요청 A 시작(0초)
+├─ Profile 조회(0.5초) - 캐시 미스, 캐시에 저장(10초 후 만료)
+└─ 요청 A 종료(3초)
+
+요청 B 시작(5초)
+├─ Profile 조회(5.5초) - 캐시 적중(요청 A의 캐시 사용)
+└─ 요청 B 종료(8초)
+
+요청 C 시작(11초)
+├─ Profile 조회(11.5초) - 캐시 미스(요청 A의 캐시 만료)
+└─ 요청 C 종료(14초)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;즉, 적절한 TTL을 설정하기 어려우므로 Redis/Local 캐시는 HTTP 요청 범위 캐싱에 적합하지 않으며, 요청 범위와 일치하는 생명주기의 캐시가 필요하다는 결론에 도달했습니다.&lt;/p&gt;
+
+&lt;h2 id="requestscope"&gt;@RequestScope를 이용한 첫 번째 시도&lt;/h2&gt;
+
+&lt;p&gt;Spring의 &lt;code&gt;@RequestScope&lt;/code&gt;는 Bean의 생명주기를 HTTP 요청 범위로 설정합니다. 이를 CacheManager에 적용하면 간단하게 요청별 캐싱을 구현할 수 있을 것 같았습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;@Config
+public class CacheConfig {
+    @Bean
+    @RequestScope
+    public CacheManager requestCacheManager() {
+        return new ConcurrentMapCacheManager();
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id="requestscope"&gt;@RequestScope의 동작 원리&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;@RequestScope&lt;/code&gt;를 제대로 이해하고 사용하기 위해서는 먼저 다음 두 가지 의문점을 해결해야 했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;@RequestScope Bean은 어떻게 요청마다 다른 인스턴스를 사용할까?&lt;/li&gt;
+&lt;li&gt;@RequestScope를 붙이면 요청별로 완전히 분리될까?&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id="proxy"&gt;Proxy 패턴을 통한 요청별 인스턴스 관리&lt;/h4&gt;
+
+&lt;p&gt;첫 번째 의문의 핵심은 &lt;strong&gt;Proxy&lt;/strong&gt;였습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/4-1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;@RequestScope&lt;/code&gt;로 선언된 Bean은 Spring Container에 Proxy 객체로 등록됩니다. 이 Proxy는 싱글턴으로 관리되지만, 실제 메서드 호출 시 현재 요청에 해당하는 실제 인스턴스를 조회하여 메서드 호출을 위임합니다. 각 HTTP 요청마다 새로운 실제 인스턴스가 생성되어 사용됩니다.&lt;/p&gt;
+
+&lt;h4 id="requestattribute"&gt;RequestAttribute를 통한 요청별 분리와 자동 정리&lt;/h4&gt;
+
+&lt;p&gt;두 번째 의문에 대한 답은 Spring의 &lt;code&gt;AbstractRequestAttributesScope&lt;/code&gt; 클래스를 살펴보면 알 수 있습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// AbstractRequestAttributesScope.class
+public abstract class AbstractRequestAttributesScope implements Scope {
+
+    @Override
+    public Object get(String name, ObjectFactory&amp;lt;?&amp;gt; objectFactory) {
+        RequestAttributes attributes = RequestContextHolder.currentRequestAttributes();
+        Object scopedObject = attributes.getAttribute(name, this.getScope());
+        if (scopedObject == null) {
+            scopedObject = objectFactory.getObject();
+            attributes.setAttribute(name, scopedObject, this.getScope());
+            Object retrievedObject = attributes.getAttribute(name, this.getScope());
+            if (retrievedObject != null) {
+                scopedObject = retrievedObject;
+            }
+        }
+
+        return scopedObject;
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;@RequestScope&lt;/code&gt; Bean의 실제 인스턴스는 &lt;code&gt;RequestAttribute&lt;/code&gt;에 저장됩니다. &lt;code&gt;RequestAttribute&lt;/code&gt;는 &lt;code&gt;FrameworkServlet&lt;/code&gt;에서 생성되므로 요청별로 완전히 분리됩니다. 또한 내부에서 &lt;code&gt;ThreadLocal&lt;/code&gt;을 사용해 thread-safe를 보장합니다.&lt;/p&gt;
+
+&lt;p&gt;RequestAttribute의 자동 정리 메커니즘에 대해서 좀 더 자세히 알아보겠습니다. &lt;code&gt;RequestAttribute&lt;/code&gt;에 저장된 데이터는 요청 종료 시 자동으로 정리되는데, 이는 &lt;code&gt;FrameworkServlet&lt;/code&gt;의 &lt;code&gt;processRequest()&lt;/code&gt; 메서드에서 보장됩니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// FrameworkServlet.class
+public abstract class FrameworkServlet extends HttpServletBean {
+
+    protected final void processRequest(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        long startTime = System.currentTimeMillis();
+        Throwable failureCause = null;
+        LocaleContext previousLocaleContext = LocaleContextHolder.getLocaleContext();
+        LocaleContext localeContext = this.buildLocaleContext(request);
+        RequestAttributes previousAttributes = RequestContextHolder.getRequestAttributes();
+        ServletRequestAttributes requestAttributes = this.buildRequestAttributes(request, response, previousAttributes);
+        WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
+        asyncManager.registerCallableInterceptor(FrameworkServlet.class.getName(), new RequestBindingInterceptor());
+        this.initContextHolders(request, localeContext, requestAttributes);
+
+        try {
+            this.doService(request, response);
+        } catch (IOException | ServletException ex) {
+            failureCause = ex;
+            throw ex;
+        } catch (Throwable ex) {
+            failureCause = ex;
+            throw new ServletException("Request processing failed: " + ex, ex);
+        } finally {
+            this.resetContextHolders(request, previousLocaleContext, previousAttributes);
+            if (requestAttributes != null) {
+                requestAttributes.requestCompleted();
+            }
+
+            this.logResult(request, response, failureCause, asyncManager);
+            this.publishRequestHandledEvent(request, response, startTime, failureCause);
+        }
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;finally&lt;/code&gt; 블록에서 &lt;code&gt;requestAttributes.requestCompleted()&lt;/code&gt;를 호출하여, 요청이 정상 종료되든 예외가 발생하든 관계없이 RequestAttribute가 반드시 정리됩니다. 그 결과 메모리 누수가 방지됩니다.&lt;/p&gt;
+
+&lt;h3 id="springactuator"&gt;Spring Actuator와의 충돌&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;@RequestScope&lt;/code&gt;를 적용하고 애플리케이션을 실행하자 예상치 못한 문제가 발생했습니다. &lt;code&gt;ScopeNotActiveException&lt;/code&gt;이 발생해 애플리케이션이 실행되지 않았습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/5-1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Error creating bean with name 'cacheManager': Scope 'request' is not active
+for the current thread; consider defining a scoped proxy for this bean
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=""&gt;오류 발생 원인&lt;/h4&gt;
+
+&lt;p&gt;원인은 Spring Actuator의 &lt;code&gt;CacheMetricsAutoConfiguration&lt;/code&gt;과의 충돌이었습니다. &lt;code&gt;CacheMetricsAutoConfiguration&lt;/code&gt;은 애플리케이션 시작 시점에 실행되는데, 이때는 HTTP 요청이 없어 &lt;code&gt;RequestScope&lt;/code&gt;가 활성화되지 않습니다.&lt;/p&gt;
+
+&lt;p&gt;오류가 발생하는 전체 흐름은 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;@RequestScope&lt;/code&gt; Bean의 Proxy가 실제 타겟 객체를 resolve하기 위해 &lt;code&gt;Scope&lt;/code&gt; 인터페이스의 &lt;code&gt;get()&lt;/code&gt; 메서드를 호출합니다. &lt;code&gt;@RequestScope&lt;/code&gt;의 경우 &lt;code&gt;AbstractRequestAttributesScope.get()&lt;/code&gt;이 호출됩니다. 이때 &lt;code&gt;RequestContextHolder.currentRequestAttributes()&lt;/code&gt;가 호출됩니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// AbstractRequestAttributesScope.class
+public abstract class AbstractRequestAttributesScope implements Scope {
+
+    public Object get(String name, ObjectFactory&amp;lt;?&amp;gt; objectFactory) {
+        RequestAttributes attributes = RequestContextHolder.currentRequestAttributes();
+        ...
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;currentRequestAttributes()&lt;/code&gt; 메서드에서 HTTP 요청이 활성화되지 않은 경우 &lt;code&gt;IllegalStateException&lt;/code&gt;이 발생합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// RequestContextHolder.class
+public abstract class RequestContextHolder {
+
+    public static RequestAttributes currentRequestAttributes() throws IllegalStateException {
+        RequestAttributes attributes = getRequestAttributes();
+        if (attributes == null) {
+            if (jsfPresent) {
+                attributes = RequestContextHolder.FacesRequestAttributesFactory.getFacesRequestAttributes();
+            }
+            if (attributes == null) {
+                // HTTP 요청이 활성화되지 않은 경우
+                throw new IllegalStateException(
+                    "No thread-bound request found:...");
+            }
+        }
+        return attributes;
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;AbstractBeanFactory&lt;/code&gt;에서 이를 catch하여 &lt;code&gt;ScopeNotActiveException&lt;/code&gt;을 던집니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// AbstractBeanFactory.class
+public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport
+    implements ConfigurableBeanFactory {
+
+    protected &amp;lt;T&amp;gt; T doGetBean(String name, ...) throws BeansException {
+        ...
+        catch (IllegalStateException ex) {
+            throw new ScopeNotActiveException(beanName, scopeName, ex);
+        }
+        ...
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=""&gt;임시 해결책 및 한계&lt;/h4&gt;
+
+&lt;p&gt;&lt;code&gt;CacheMetricsAutoConfiguration&lt;/code&gt;을 제외하면 기술적으로는 동작하지만 캐시 적중/미스와 같은 중요한 메트릭을 수집할 수 없습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;@Config
+@EnableAutoConfiguration(exclude = {CacheMetricsAutoConfiguration.class})
+public class CacheConfig {
+    @Bean
+    @RequestScope
+    public CacheManager requestCacheManager() {
+        return new ConcurrentMapCacheManager();
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;이는 근본적인 해결책이 아니므로 다른 방식을 고민했습니다.&lt;/p&gt;
+
+&lt;h2 id="cachemanager"&gt;최종 해결책: 커스텀 CacheManager&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;@RequestScope&lt;/code&gt; 방식은 &lt;code&gt;RequestAttribute&lt;/code&gt;에 &lt;code&gt;CacheManager&lt;/code&gt; 인스턴스를 저장하므로 애플리케이션 시작 시점에 resolve를 시도해 오류가 발생했습니다. 이 과정에서 얻은 인사이트를 바탕으로, 다음과 같은 커스텀 방식을 설계했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;CacheManager&lt;/code&gt; 자체는 싱글턴으로 유지&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;RequestAttribute&lt;/code&gt;에 &lt;strong&gt;Cache 객체&lt;/strong&gt;를 저장&lt;/li&gt;
+&lt;li&gt;HTTP 요청 활성화 여부를 확인해 적절히 처리&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/6-2.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;커스텀 방식은 &lt;code&gt;RequestAttribute&lt;/code&gt;에 Cache 객체를 저장하므로, 애플리케이션 시작 시점에는 &lt;code&gt;CacheManager&lt;/code&gt;만 사용해 오류가 발생하지 않습니다.&lt;/p&gt;
+
+&lt;h3 id="1cachemanager"&gt;1. 커스텀 CacheManager 구현&lt;/h3&gt;
+
+&lt;p&gt;이러한 커스텀 방식을 구현하기 위해서는 Spring의 &lt;code&gt;CacheManager&lt;/code&gt; 인터페이스를 직접 구현해야 합니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/7-2.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h4 id="http"&gt;HTTP 요청 컨텍스트 활성화 확인&lt;/h4&gt;
+
+&lt;p&gt;먼저, HTTP 요청이 활성화되어 있는지 확인하는 유틸리티 메서드를 구현합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// RequestScopedCacheManager.class
+
+private boolean isRequestContextActive() {
+    try {
+        RequestContextHolder.currentRequestAttributes();
+        return true;
+    } catch (IllegalStateException e) {
+        // HTTP 요청이 활성화되지 않은 경우
+        return false;
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;앞에서 본 것처럼 &lt;code&gt;IllegalStateException&lt;/code&gt;이 발생하면 요청이 활성화되지 않은 것으로 판단합니다.&lt;/p&gt;
+
+&lt;h4 id="getcache"&gt;핵심 로직 getCache() 구현&lt;/h4&gt;
+
+&lt;p&gt;&lt;code&gt;RequestScopedCacheManager&lt;/code&gt;의 핵심은 &lt;code&gt;getCache()&lt;/code&gt; 구현입니다. &lt;code&gt;CacheManager&lt;/code&gt;의 &lt;code&gt;getCache()&lt;/code&gt; 메서드는 주어진 이름에 해당하는 캐시를 반환하는 역할을 합니다. &lt;code&gt;@Cacheable&lt;/code&gt; 등의 애너테이션이 동작할 때 캐시를 가져오기 위해 이 메서드를 사용합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// RequestScopedCacheManager.class
+
+@Override
+public Cache getCache(String name) {
+    try {
+        // 1. 요청 컨텍스트 활성화 확인
+        if (!isRequestContextActive()) {
+            return new NoOpCache(name);
+        }
+
+        // 2. RequestAttribute에서 캐시 조회
+        RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
+        String cacheKey = CACHE_ATTRIBUTE_PREFIX + name;
+        Cache cache = (Cache)requestAttributes.getAttribute(cacheKey, RequestAttributes.SCOPE_REQUEST);
+
+        // 3. 캐시가 없으면 생성 후 RequestAttribute에 저장
+        if (cache == null) {
+            cache = createNewCache(name);
+            requestAttributes.setAttribute(cacheKey, cache, RequestAttributes.SCOPE_REQUEST);
+        }
+
+        return cache;
+    } catch (Exception e) {
+        log.warn("요청 캐시 조회 실패 - 캐시 비활성화", e);
+        return new NoOpCache(name);
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;동작 흐름은 다음과 같습니다.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;요청 컨텍스트 활성화 확인&lt;/strong&gt;: HTTP 요청이 활성화되지 않은 경우 &lt;code&gt;NoOpCache&lt;/code&gt; 반환  &lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;RequestAttribute에서 캐시 조회&lt;/strong&gt;: 요청별로 저장된 캐시 조회  &lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;캐시 생성 및 저장&lt;/strong&gt;: 캐시가 없으면 새로 생성해 RequestAttribute에 저장  &lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;예외 처리&lt;/strong&gt;: 예상치 못한 오류 발생 시에도 &lt;code&gt;NoOpCache&lt;/code&gt;를 반환해 안전하게 처리&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;1번 과정에서 &lt;code&gt;null&lt;/code&gt; 대신 &lt;code&gt;NoOpCache&lt;/code&gt;를 반환하는 이유를 알아보겠습니다.&lt;/p&gt;
+
+&lt;p&gt;Spring의 &lt;code&gt;CacheManager&lt;/code&gt; 인터페이스 명세를 보면 &lt;code&gt;getCache()&lt;/code&gt; 메서드는 캐시가 없거나 생성할 수 없을 때 &lt;code&gt;null&lt;/code&gt;을 반환하도록 정의되어 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/8-2.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;하지만 실제로 &lt;code&gt;null&lt;/code&gt;을 반환하면 Spring의 &lt;code&gt;AbstractCacheResolver&lt;/code&gt;에서 오류가 발생합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// AbstractCacheResolver.class
+public abstract class AbstractCacheResolver implements CacheResolver {
+
+    @Override
+    public Collection&amp;lt;? extends Cache&amp;gt; resolveCaches(CacheOperationInvocationContext&amp;lt;?&amp;gt; context) {
+        Collection&amp;lt;String&amp;gt; cacheNames = getCacheNames(context);
+        if (cacheNames == null) {
+            return Collections.emptyList();
+        }
+        Collection&amp;lt;Cache&amp;gt; result = new ArrayList&amp;lt;&amp;gt;(cacheNames.size());
+        for (String cacheName : cacheNames) {
+            Cache cache = getCacheManager().getCache(cacheName);
+            if (cache == null) {
+                // null을 반환하면 여기서 예외 발생!
+                throw new IllegalArgumentException("Cannot find cache named '" +
+                    cacheName + "' for " + context.getOperation());
+            }
+            result.add(cache);
+        }
+        return result;
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;AbstractCacheResolver&lt;/code&gt;는 &lt;code&gt;@Cacheable&lt;/code&gt;, &lt;code&gt;@CacheEvict&lt;/code&gt; 등의 애너테이션에서 어떤 캐시를 사용할지 결정하는 클래스입니다. 이 클래스는 &lt;code&gt;getCache()&lt;/code&gt;가 &lt;code&gt;null&lt;/code&gt;을 반환하면 &lt;code&gt;IllegalArgumentException&lt;/code&gt;을 던집니다.&lt;/p&gt;
+
+&lt;p&gt;이를 방지하기 위해 Spring의 &lt;code&gt;NoOpCache&lt;/code&gt;를 반환합니다. &lt;code&gt;NoOpCache&lt;/code&gt;는 캐싱을 수행하지 않는 더미 구현체로, 요청 컨텍스트가 비활성화된 환경에서도 오류 없이 정상 동작하도록 합니다. 단, 실제 캐싱은 되지 않으므로 매번 메서드가 실행됩니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// NoOpCache.class
+public class NoOpCache implements Cache {
+
+    private final String name;
+
+    @Override
+    public ValueWrapper get(Object key) {
+        return null; // 항상 캐시 미스
+    }
+
+    @Override
+    public void put(Object key, Object value) {
+        // 아무 동작도 하지 않음
+    }
+
+    // ... 나머지 메서드도 모두 no-op
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=""&gt;전체 구현 코드&lt;/h4&gt;
+
+&lt;p&gt;&lt;code&gt;RequestScopedCacheManager&lt;/code&gt;의 전체 코드는 다음과 같습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// RequestScopedCacheManager.class
+public class RequestScopedCacheManager implements CacheManager {
+
+    private static final String CACHE_ATTRIBUTE_PREFIX = "requestCache.";
+
+    @Override
+    public Cache getCache(String name) {
+        try {
+            if (!isRequestContextActive()) {
+                return new NoOpCache(name);
+            }
+
+            RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
+            String cacheKey = CACHE_ATTRIBUTE_PREFIX + name;
+            Cache cache = (Cache)requestAttributes.getAttribute(cacheKey, RequestAttributes.SCOPE_REQUEST);
+
+            if (cache == null) {
+                cache = createNewCache(name);
+                requestAttributes.setAttribute(cacheKey, cache, RequestAttributes.SCOPE_REQUEST);
+            }
+
+            return cache;
+        } catch (Exception e) {
+            log.warn("요청 캐시 조회 실패 - 캐시 비활성화", e);
+            return new NoOpCache(name);
+        }
+    }
+
+    @Override
+    public Collection&amp;lt;String&amp;gt; getCacheNames() {
+        if (!isRequestContextActive()) {
+            return Collections.emptyList();
+        }
+        return Collections.singletonList("requestCache");
+    }
+
+    private Cache createNewCache(String name) {
+        return new ConcurrentMapCache(name, new ConcurrentHashMap&amp;lt;&amp;gt;(), false);
+    }
+
+    private boolean isRequestContextActive() {
+        try {
+            RequestContextHolder.currentRequestAttributes();
+            return true;
+        } catch (IllegalStateException e) {
+            // HTTP 요청이 활성화되지 않은 경우
+            return false;
+        }
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id="2requestcache"&gt;2. @RequestCache 애너테이션 생성&lt;/h3&gt;
+
+&lt;p&gt;이제 사용 편의성을 위해 커스텀 애너테이션을 만들겠습니다. &lt;code&gt;@Cacheable&lt;/code&gt;을 메타 애너테이션으로 사용해 Spring의 기존 캐싱 기능을 그대로 활용하면서, 앞에서 개발한 커스텀 CacheManager를 &lt;code&gt;cacheManager&lt;/code&gt;에 지정합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;@Target({ElementType.TYPE, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Cacheable(cacheManager = "requestScopedCacheManager")
+public @interface RequestCache {
+
+    @AliasFor(annotation = Cacheable.class, attribute = "value")
+    String[] value() default {"requestCache"};
+
+    @AliasFor(annotation = Cacheable.class, attribute = "cacheNames")
+    String[] cacheNames() default {"requestCache"};
+
+    @AliasFor(annotation = Cacheable.class, attribute = "condition")
+    String condition() default "";
+
+    @AliasFor(annotation = Cacheable.class, attribute = "unless")
+    String unless() default "#result == null";
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id="3bean"&gt;3. Bean 등록&lt;/h3&gt;
+
+&lt;p&gt;일반적인 싱글턴 Bean으로 등록하며, &lt;code&gt;@EnableCaching&lt;/code&gt;으로 Spring의 캐싱 기능을 활성화합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;@Configuration
+@EnableCaching
+public class CacheConfig {
+
+    @Bean
+    public CacheManager requestScopedCacheManager() {
+        return new RequestScopedCacheManager();
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id="4"&gt;4. 사용 예&lt;/h3&gt;
+
+&lt;p&gt;애너테이션까지 만들었으면 다음과 같이 간편하게 사용할 수 있습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;@Service
+@RequiredArgsConstructor
+public class ProfileService {
+    private final ProfileApiClient profileApiClient;
+
+    @RequestCache(cacheNames = "findProfileByUserId")
+    public Profile findProfileByUserId(Long userId) {
+        // 외부 API 호출
+        return profileApiClient.findProfileByUserId(userId);
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=""&gt;동작 검증&lt;/h2&gt;
+
+&lt;p&gt;실제 동작을 검증하기 위해 동일한 요청 내에서 4번 호출하는 테스트를 수행했습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;@Override
+public void findByProfileId(ProfileId profileId) {
+    accountReadPort.findByProfileId(profileId);
+    accountReadPort.findByProfileId(profileId); // requestCache
+    accountReadPort.findByProfileId(profileId); // requestCache
+    accountReadPort.findByProfileId(profileId); // requestCache
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=""&gt;첫 번째 호출 결과&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;cache&lt;/code&gt;가 &lt;code&gt;null&lt;/code&gt;인 것과 캐시 생성 로직이 실행되는 것을 확인했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/9-2.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h3 id=""&gt;두 번째 이후 호출 결과&lt;/h3&gt;
+
+&lt;p&gt;하나의 요청 내에서 두 번째 호출부터는 &lt;code&gt;RequestAttribute&lt;/code&gt;에 저장된 캐시를 가져와 사용해 실제로 중복 호출이 방지되는 것을 확인했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/10-1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h2 id=""&gt;한계점&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;@RequestCache&lt;/code&gt;는 요청 컨텍스트 기반으로 동작하기 때문에 다음과 같은 한계가 있습니다.&lt;/p&gt;
+
+&lt;h3 id="async"&gt;@Async 메서드에서 사용 불가&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;@Async&lt;/code&gt;로 선언된 비동기 메서드는 별도의 스레드에서 실행됩니다. &lt;code&gt;RequestContextHolder&lt;/code&gt;는 전파 모드를 제공하지만, FrameworkServlet에서 &lt;code&gt;inheritable&lt;/code&gt;을 &lt;code&gt;false&lt;/code&gt;로 설정하기 때문에 자식 스레드로 전파되지 않습니다. 따라서 비동기 메서드에서 &lt;code&gt;@RequestCache&lt;/code&gt;를 사용하면 캐싱이 동작하지 않으며, 오류가 발생하지는 않지만 매번 실제 메서드가 실행됩니다.&lt;/p&gt;
+
+&lt;h3 id="kafkaconsumer"&gt;Kafka Consumer에서 사용 불가&lt;/h3&gt;
+
+&lt;p&gt;Kafka Consumer는 HTTP 요청 컨텍스트가 아닌 메시지 처리 컨텍스트에서 실행됩니다. 따라서 &lt;code&gt;@RequestCache&lt;/code&gt;를 적용해도 캐싱이 동작하지 않으며, 매번 실제 로직이 수행됩니다.&lt;/p&gt;
+
+&lt;h3 id="threadlocal"&gt;고려했던 대안: ThreadLocal&lt;/h3&gt;
+
+&lt;p&gt;요청 컨텍스트의 한계를 극복하기 위해 ThreadLocal 방식도 고려해 보았습니다. ThreadLocal을 사용하면 각 스레드의 캐시가 독립적이므로 @Async나 Kafka Consumer 환경에서도 동작할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;하지만 ThreadLocal 방식은 다음과 같은 문제점이 있어 채택하지 않았습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;복잡한 생명주기 관리&lt;/h4&gt;
+
+&lt;p&gt;ThreadLocal에 저장된 캐시는 자동으로 정리되지 않기 때문에, HTTP 요청, Kafka 메시지 처리 등 각 생명주기마다 수동으로 &lt;code&gt;clear()&lt;/code&gt;를 호출해야 합니다. AOP나 Interceptor를 통한 자동 정리가 필요하지만, 모든 케이스를 커버하기 어렵습니다. 각 실행 컨텍스트(HTTP 요청, Kafka Consumer, @Async 등)마다 정리 로직을 구현해야 하며, 테스트 환경에서도 별도의 정리 로직이 필요합니다. 이는 코드의 복잡도를 크게 증가시킵니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;메모리 누수 위험&lt;/h4&gt;
+
+&lt;p&gt;실수로 캐시를 정리하지 않으면 ThreadLocal에 캐시가 계속 남아 메모리 누수가 발생합니다. 특히 스레드 풀을 사용하는 환경에서는 스레드가 재사용되면서 이전 작업의 캐시가 남아있어 더욱 심각한 문제가 될 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;따라서 &lt;code&gt;@Async&lt;/code&gt;와 Kafka Consumer에서는 캐싱이 되지 않더라도, 비교적 간단하고 안전한 요청 컨텍스트 방식을 채택했습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;마치며&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;@RequestCache&lt;/code&gt;는 HTTP 요청 범위 캐싱이라는 특정 문제를 해결하기 위해 만들어졌습니다. 완벽하지는 않지만, 실용적이고 안전한 해결책이 되었다고 생각합니다.&lt;/p&gt;
+
+&lt;p&gt;혹시 이 글을 읽으신 분 중에 &lt;code&gt;@Async&lt;/code&gt;나 Kafka Consumer 환경에서도 안전하게 동작하는 더 나은 아이디어가 있는 분이 계시다면, 언제든지 의견을 주시면 감사하겠습니다!&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <title>이건 첫 번째 클릭! 히트맵 같이 보기</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/0957098" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/0957098</id>
+    <updated>2025-11-25T14:34:13Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/89068823?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;네이버 통합검색의 클릭 로그를 히트맵과 히스토그램으로 시각화하여 직관적으로 사용자 행동을 파악할 수 있는 기술을 소개합니다.&lt;/li&gt;
+&lt;li&gt;실시간으로 진화하는 네이버 검색 서비스를 대응하기 위해 겪은 시행착오와 노하우를 공유합니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;웹 페이지 사용자 소비를 시각적 요소로 확인하고 싶은 분&lt;/li&gt;
+&lt;li&gt;정량적 데이터를 이해하는 데 어려움을 겪는 분&lt;/li&gt;
+&lt;li&gt;데이터 시각화를 기반으로 서비스 개선의 직관적 근거를 찾고자 하는 분&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>DBT, Airflow를 활용한 데이터 계보 중심 파이프라인 만들기</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/8992409" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/8992409</id>
+    <updated>2025-11-24T12:26:12Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/88994525?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;과거 데이터 파이프라인의 문제를 해결하고 사용자 중심의 on-demand data lineage pipeline 서비스인 Flow.er를 개발하고 발전시킨 내용에 대해 소개합니다&lt;/li&gt;
+&lt;li&gt;DBT, Airflow를 활용하여 어떻게 데이터 계보 중심 파이프라인을 구축했는지 공유 합니다&lt;/li&gt;
+&lt;li&gt;데이터 파이프라인 플랫폼으로써 여러 데이터 조직으로 확장하기 위한 개발 컴포넌트들을 소개합니다&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;DBT, Airflow를 활용하여 품질 높은 Data Product 운영이 필요한 분들&lt;/li&gt;
+&lt;li&gt;DBT 운영 도입을 고려중인 Data Engineer&lt;/li&gt;
+&lt;li&gt;Airflow를 활용하고 있으나 과거 데이터 적재(Backfill) 및 파이프라인 복구 작업으로 인해 운영 비용이 높은 분들&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Episode 1: Introduction
+&lt;ul&gt;&lt;li&gt;1-1: Data FLOW&lt;/li&gt;
+&lt;li&gt;1-2: 과거 파이프라인의 문제&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Episode 2: Flow.er. On-demand data lineage pipeline
+&lt;ul&gt;&lt;li&gt;2-1: Proof of Concept&lt;/li&gt;
+&lt;li&gt;2-2: Flow.er&lt;/li&gt;
+&lt;li&gt;2-3: Flow-er 구성 요소&lt;/li&gt;
+&lt;li&gt;2-4: DBT의 역할&lt;/li&gt;
+&lt;li&gt;2-5: Airflow의 역할&lt;/li&gt;
+&lt;li&gt;2-6: 개인 인스턴스&lt;/li&gt;
+&lt;li&gt;2-7: 모델 관리 페이지&lt;/li&gt;
+&lt;li&gt;2-8: CI/CD 파이프라인&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Episode 3: Flow.er의 확장 – 추가 프로덕트 개발과 개선
+&lt;ul&gt;&lt;li&gt;3-1: Playground&lt;/li&gt;
+&lt;li&gt;3-2: Tower&lt;/li&gt;
+&lt;li&gt;3-3: Manager DAG System 개선&lt;/li&gt;
+&lt;li&gt;3-4: 정합성 향상을 위한 Partition Checker&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Episode 4: Flow.er의 미래 - 하고 싶은 것들
+&lt;ul&gt;&lt;li&gt;4-1: MCP 서버 운영하기&lt;/li&gt;
+&lt;li&gt;4-2: 또 다른 미래&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Episode 5: Conclusion
+&lt;ul&gt;&lt;li&gt;5-1: 무엇이 바뀌었는가&lt;/li&gt;
+&lt;li&gt;5-2: Conclusion&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>서비스 조직에서 Kafka를 사용할 때 알아 두어야 할 것들 (5)</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/3974242" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/3974242</id>
+    <updated>2025-11-20T16:13:06Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/88720186?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;p&gt;Consumer Group Protocol v2를 소개합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;조직에서 Kafka를 사용하거나 관심 있는 분들&lt;/li&gt;
+&lt;li&gt;Consumer Group Protocol 에 대해 관심 있는 분들&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Consumer Group Protocol (v1) 특징과 문제점&lt;/li&gt;
+&lt;li&gt;Consumer Group Protocol (v2) 특징
+&lt;ul&gt;&lt;li&gt;장점&lt;/li&gt;
+&lt;li&gt;성능&lt;/li&gt;
+&lt;li&gt;사용법&lt;/li&gt;
+&lt;li&gt;설정&lt;/li&gt;
+&lt;li&gt;툴&lt;/li&gt;
+&lt;li&gt;마이그레이션&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>API 호출식 웜업의 부작용을 넘어서 : 라이브러리만 데우는 JVM 웜업</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/1580651" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/1580651</id>
+    <updated>2025-11-19T16:04:42Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/88624312?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;p&gt;API 호출식 웜업의 부작용을 개선한 라이브러리 웜업을 소개합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;p&gt;JVM JIT Compiler의 웜업 방식 기본을 알고 있는 분 또는 관심있는 분 &lt;br /&gt;
+JVM 기반 웹 어플리케이션의 웜업에 관심있는 분&lt;/p&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;JVM WARM-UP?&lt;/li&gt;
+&lt;li&gt;기존 웜업 방식과 문제&lt;/li&gt;
+&lt;li&gt;아이디어&lt;/li&gt;
+&lt;li&gt;라이브러리 웜업 구현&lt;/li&gt;
+&lt;li&gt;검증&lt;/li&gt;
+&lt;li&gt;이점 및 한계&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>Telegraf로 커스텀 지표 수집하기: Exporter 개발 경험 공유</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/8677833" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/8677833</id>
+    <updated>2025-11-18T14:39:13Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/88518984?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;p&gt;Telegraf를 활용한 Exporter 개발 경험 공유 및 가이드를 소개합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 대상&lt;/h4&gt;
+
+&lt;p&gt;오픈소스 기반 Exporter와 Telegraf 적용을 고려중인 엔지니어&lt;/p&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ol&gt;
+&lt;li&gt;오픈소스 기반 Exporter 도입 배경  &lt;/li&gt;
+&lt;li&gt;오픈소스 Benchmark Test  &lt;/li&gt;
+&lt;li&gt;Telegraf 란?  &lt;/li&gt;
+&lt;li&gt;Telegraf 적용 후 개선점  &lt;/li&gt;
+&lt;li&gt;Telegraf 옵션&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+  <entry>
+    <title>6개월 만에 연간 수십조를 처리하는 DB CDC 복제 도구 무중단/무장애 교체하기</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/6388660" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/6388660</id>
+    <updated>2025-12-03T15:27:29Z</updated>
+    <content type="html">&lt;p&gt;네이버페이 차세대 아키텍처 개편을 위한 Plasma 프로젝트가 7년의 기간 끝에 2025년 7월부로 공식 종료를 선언했습니다. 이 글에서는 Plasma 프로젝트의 최종장인 DB CDC 복제 도구 ergate 프로젝트의 개발 및 전환 경험을 공유하고자 합니다.&lt;/p&gt;
+
+&lt;h2 id="ergate"&gt;ergate 프로젝트 소개&lt;/h2&gt;
+
+&lt;p&gt;ergate 프로젝트는 네이버페이 주문에서 DB 간 복제를 수행하는 프로세스(mig-data)를 전환하는 프로젝트로, 전환 목표는 다음과 같습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;사용량 증가에 따라 &lt;strong&gt;확장 가능한 구조&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;주문 백엔드 개발자의 &lt;strong&gt;유지 보수 및 추가 개발이 쉬운 구조와 기술 스택&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;이름은 일개미처럼 데이터를 계속 실어 나르는 도구라는 의미에서 ergate라고 지었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h2 id=""&gt;용어 설명&lt;/h2&gt;
+
+&lt;p&gt;본격적으로 들어가기 전에 몇 가지 용어를 먼저 소개하겠습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;mig-data: Plasma 프로젝트에서 DB 간 복제를 수행하던 도구. 다양한 기능이 있지만 이 글에서는 'Kafka 이벤트 기반 비동기 복제 프로세스'를 의미합니다.&lt;/li&gt;
+&lt;li&gt;forceSync: API 호출 기반으로 실시간 동기 복제를 수행하는 spring-web + mig-data 기반 컴포넌트. mig-data의 지연 및 복제 중단을 대비한 보완 장치입니다.&lt;/li&gt;
+&lt;li&gt;nBase-T: 네이버 사내 분산 RDB 플랫폼(실저장소로 mySQL 이용)&lt;/li&gt;
+&lt;li&gt;nbase-cdc: nBase-T 환경에서 mySQL binlog를 읽어들여 Kafka 레코드로 발행하는 도구&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=""&gt;작업 동기&lt;/h2&gt;
+
+&lt;p&gt;기존 DB 간 복제를 수행하던 mig-data는 DB 코어 개발 경험이 있는 개발자가 순수 Java로 소스 코드를 작성했습니다. Plasma 프로젝트를 마무리하기 위해서는 복제 도구까지 주문 개발로 내재화해야 했는데, 기존 도구를 그대로 인수인계하기에는 백엔드 개발자 입장에서 유지 보수와 추가 개발이 어려웠습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;개선 필요 사항&lt;/h3&gt;
+
+&lt;p&gt;mig-data는 7년간 Plasma 프로젝트의 복제를 담당했기에 많은 기능과 그에 따른 제약 사항이 있었는데, 그중 대부분은 Source와 Target 간의 양방향 복제와 관련이 있었습니다. ergate 프로젝트를 진행하는 시점에서는 단방향 복제만 존재했기 때문에 양방향 복제 관련 코드와 다음과 같은 제약 사항을 제거할 필요가 있었습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;단일 레코드에 대한 복제 실패가 &lt;strong&gt;전체 복제 지연&lt;/strong&gt;으로 이어짐 - 양방향 복제 시 데이터 무결성을 확인하기 위해 의도된 동작이었습니다.&lt;/li&gt;
+&lt;li&gt;Source, Target의 &lt;strong&gt;칼럼 추가 순서가 중요&lt;/strong&gt; - Target → Source 순서로 칼럼을 추가해야 했습니다. Target이 모르는 칼럼 데이터가 인입된 경우 처리가 불가능해, 잘못된 순서로 수행 시 &lt;strong&gt;일시 복제 중단&lt;/strong&gt;이 발생했습니다.&lt;/li&gt;
+&lt;li&gt;mig-data 관련 장애 시 &lt;strong&gt;복구를 수행하는 방법과 인원이 제한적&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=""&gt;복제 현황&lt;/h3&gt;
+
+&lt;p&gt;네이버페이 주문에서는 Source DB로 전부 nBase-T를 사용하고 있었고, Target DB는 nBase-T, Oracle 두 종류가 있습니다. 목록은 다음과 같습니다.&lt;/p&gt;
+
+&lt;table&gt;&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Source&lt;/th&gt;
+&lt;th&gt;Target&lt;/th&gt;
+&lt;th&gt;용도&lt;/th&gt;
+&lt;/tr&gt;&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;주문&lt;/td&gt;
+&lt;td&gt;판매자&lt;/td&gt;
+&lt;td&gt;판매자 단위 조회 기능 및 성능&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;주문&lt;/td&gt;
+&lt;td&gt;Oracle&lt;/td&gt;
+&lt;td&gt;이전 Oracle 조회 앱 대응&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;주문&lt;/td&gt;
+&lt;td&gt;정산&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;주문&lt;/td&gt;
+&lt;td&gt;배송&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;주문&lt;/td&gt;
+&lt;td&gt;호스팅사&lt;/td&gt;
+&lt;td&gt;호스팅사 단위 뷰&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;배송&lt;/td&gt;
+&lt;td&gt;판매자&lt;/td&gt;
+&lt;td&gt;판매자 Target과 동일&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;판매자 DB는 구매자 기준으로 샤딩된 주문 DB 데이터를 판매자 번호 기준으로 샤딩해 만든 DB입니다. Oracle DB는 Plasma 프로젝트 진행 전부터 사용하고 있던 DB로, 아직 해당 DB를 보는 기능과 운영 편의를 위해 유지하고 있습니다.&lt;/p&gt;
+
+&lt;p&gt;ergate 프로젝트는 위 복제 프로세스를 전부 전환하는 것을 목표로 시작했습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;목표&lt;/h2&gt;
+
+&lt;p&gt;ergate 프로젝트의 목표는 다음과 같았습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;백엔드 개발자의 &lt;strong&gt;유지 보수 및 추가 개발이 쉬운&lt;/strong&gt; 형태로 재개발 - 주문 개발을 내재화해야 했는데 프로젝트 참여 인원 3명 모두 주로 Spring Framework 기반의 개발 경험 보유&lt;/li&gt;
+&lt;li&gt;기존 복제 도구 대비 &lt;strong&gt;기능 개선&lt;/strong&gt;
+&lt;ul&gt;&lt;li&gt;&lt;strong&gt;스키마 변경 관련 개선&lt;/strong&gt; - 일시 복제 중단 해소, 스키마 변경 순서가 무관하도록 변경&lt;/li&gt;
+&lt;li&gt;다양한 데이터 &lt;strong&gt;복구 편의 기능&lt;/strong&gt; 제공&lt;/li&gt;
+&lt;li&gt;양방향 복제 등 불필요한 기능 제외&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;현재 QPS의 10배 이상 처리할 수 있도록 &lt;strong&gt;성능 개선&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;CDC 이벤트 발행 후 1초 내 복제 보장&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=""&gt;기술 스택&lt;/h2&gt;
+
+&lt;p&gt;ergate 프로젝트에서는 프레임워크로 Apache Flink와 Spring Framework를 선택하고, 사용 언어로는 Flink 레벨에서는 주로 Java 17, Spring 레벨에서는 Kotlin 1.9를 사용했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/2.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h3 id="apacheflink"&gt;Apache Flink 선택 이유&lt;/h3&gt;
+
+&lt;p&gt;Flink는 저지연, 대용량, 고가용성 처리를 지원하는 것으로 알려져 있습니다. 그래서 프레임워크를 잘 활용하면 성능과 관련된 부분은 직접 구현하지 않고 &lt;strong&gt;복제/검증 구현에 집중&lt;/strong&gt;할 수 있을 것이라고 기대했습니다.&lt;/p&gt;
+
+&lt;p&gt;Flink 활용 사례가 늘어나고 있으며 활성화된 프로젝트이기 때문에 추후 버전업을 통한 기능 개선도 꾀할 수 있었습니다.&lt;/p&gt;
+
+&lt;p&gt;또한, nbase-cdc는 binlog를 Kafka 레코드로 발행하고 복제 도구가 해당 레코드를 읽어들여 처리해야 하는데, &lt;strong&gt;Flink는 Kafka 연동이 용이&lt;/strong&gt;했습니다.&lt;/p&gt;
+
+&lt;p&gt;알리바바에서 Flink 기여 및 사용 사례가 있는 것도 하나의 이유였습니다. 알리바바도 커머스 도메인이며 거래량이 많은 편이기 때문에 네이버페이도 같은 커머스 도메인으로 도입하는 것에 큰 거부감이 없었습니다.&lt;/p&gt;
+
+&lt;p&gt;추가로, 여러 게시글에서 사내외 적용 사례가 늘어나는 것을 확인했습니다.&lt;/p&gt;
+
+&lt;h3 id="apacheflink"&gt;Apache Flink 구성&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;버전: &lt;a href="https://nightlies.apache.org/flink/flink-docs-release-2.0"&gt;2.0.0&lt;/a&gt;(복제 전환 시점의 LTS 버전)&lt;/li&gt;
+&lt;li&gt;Kubernetes에서 세션 모드로 클러스터 구성&lt;/li&gt;
+&lt;li&gt;고가용성(high availability, HA): Kubernetes, Amazon S3(Flink가 HA 구성 옵션 제공)&lt;/li&gt;
+&lt;li&gt;기타 런타임 라이브러리 추가 구성
+&lt;ul&gt;&lt;li&gt;사내 플랫폼 연동&lt;/li&gt;
+&lt;li&gt;리소스 풀 관리를 위한 fat JAR 추가&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;세션 모드 선택 이유&lt;/h4&gt;
+
+&lt;p&gt;Flink 클러스터 구성에는 2가지 모드가 있습니다(참고: &lt;a href="https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/deployment/overview/#deployment-modes"&gt;공식 문서&lt;/a&gt;). 각 모드를 간단하게 설명하면 다음과 같습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;애플리케이션 모드: 전용 클러스터에서 하나의 job만 구동. job과 클러스터의 생명 주기는 동일.&lt;/li&gt;
+&lt;li&gt;세션 모드: 공용 클러스터에 job jar를 제출(submit)하여 구동. job의 시작/종료와 클러스터의 생명 주기는 별개.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;저희는 모니터링, 배포 측면에서 검토해 세션 모드를 선택했습니다.&lt;/p&gt;
+
+&lt;p&gt;모니터링 측면에서는 상위 6가지 복제 job의 구동 상태를 볼 수 있는 하나의 엔드포인트가 필요한데, 세션 모드로 구동 시 하나의 job manager가 제공하는 웹 UI로 모든 job의 상태를 한 번에 확인할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;그리고 배포 측면에서는 구동 시 개별 복제 job에 대응되는 검증 job까지 구동하기 때문에 총 12개의 job을 배포해야 하는데, 애플리케이션 모드는 job마다 별도의 클러스터가 필요해 전체 배포 시 배포 시간이 더 소요될 수 있습니다. 또한 프로젝트 초기 구축 시에는 배포마다 컨슈머 group.id가 별도로 부여되면 배포 타이밍에 downtime이 발생해 큰 이슈로 이어질 수도 있습니다.&lt;/p&gt;
+
+&lt;p&gt;세션 모드 선택으로 인한 트레이드오프도 존재했습니다.
+job manager를 재배포하거나 장애가 발생한 상황이라면 모든 job이 중단되었는데, 이 내용은 뒤의 트러블슈팅 과정에서 설명하겠습니다.&lt;/p&gt;
+
+&lt;h3 id="springframework"&gt;Spring Framework 도입 필요성&lt;/h3&gt;
+
+&lt;p&gt;세션 모드에서 Flink job을 구현해 보았을 때, 여기에 모든 기능을 구현하기에는 Spring 개발만 진행했던 경험상 불편한 점이 있었습니다.(이 부분도 트러블슈팅에서 자세히 설명하겠습니다.) 복제, 검증 기능을 먼저 개발해 보면서 &lt;strong&gt;Flink에는 속도가 중요한 로직만 두자&lt;/strong&gt;는 결론을 도출했고, 후술할 다양하고 복잡한 '복구' 로직은 별도 Spring 모듈로 격리하기로 결정했습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;주요 기능&lt;/h2&gt;
+
+&lt;p&gt;ergate의 주요 기능은 복제, 검증, 복구의 3가지입니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;복제&lt;/h3&gt;
+
+&lt;p&gt;Source DB에서 변경이 발생하여 binlog로 기록되면, nbase-cdc가 해당 변경을 Kafka 레코드로 발행합니다. ergate의 Flink job인 jdbc-sink는 해당 &lt;strong&gt;레코드를 읽어들여 Target DB로 반영&lt;/strong&gt;합니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/3.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;발행된 Kafka 레코드의 데이터의 예는 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Kafka 레코드의 예&lt;/strong&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-json"&gt;{
+    ...
+    "payloads": [
+        {
+            "op": "update",
+            "table": "table1",
+            "old": {
+                "primary_key": "pkvalue",
+                "col1": "col1value",
+                "col2": "col2value"
+            },
+            "new": {
+                "primary_key": "pkvalue",
+                "col1": "newcol1value",
+                "col2": "newcol2value",
+                "col3": "col3value",
+            },
+        },
+        {
+            "op": "insert",
+            "table": "table2",
+            "old": null,
+            "new": {
+                "primary_key": "pkvalue",
+                "col1": "col1value",
+                "col2": "col2value",
+                "col3": "col3value",
+            },
+        },
+    ]
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=""&gt;전용 칼럼 추가&lt;/h4&gt;
+
+&lt;p&gt;ergate가 Target으로 데이터를 복제하는 시점에 전용 칼럼 2개를 추가로 반영하도록 구성했습니다. 이 칼럼들은 주로 모니터링에 사용됩니다.&lt;/p&gt;
+
+&lt;table&gt;&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;칼럼명&lt;/th&gt;
+&lt;th&gt;용도&lt;/th&gt;
+&lt;th&gt;상세&lt;/th&gt;
+&lt;/tr&gt;&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;ergate_yn&lt;/td&gt;
+&lt;td&gt;복제 주체 구분&lt;/td&gt;
+&lt;td&gt;0(mig-data)&lt;br&gt;1(ergate)&lt;br&gt;2(forceSync)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;rpc_time&lt;/td&gt;
+&lt;td&gt;원 레코드가 Source에서 커밋된 시간&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;h3 id=""&gt;검증&lt;/h3&gt;
+
+&lt;p&gt;&lt;strong&gt;원 데이터와 복제한 데이터의 일치 여부를 확인&lt;/strong&gt;하는 verifier라는 Flink job을 구현했습니다. verifier는 복제에서 사용하는 토픽을 바라보고 있으며 이 토픽을 &lt;strong&gt;지연 컨슈밍&lt;/strong&gt;(2분)해 검증을 수행합니다. 검증에 실패하면 검증 실패 DLQ로 다시 발행하며, 별도의 Spring 컨슈머가 상태 DB에 기록합니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/4.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;지연 컨슈밍으로 인한 추가 동작&lt;/h4&gt;
+
+&lt;p&gt;검증 시 Kafka 레코드의 데이터와 검증 시점 Target row를 비교하기 때문에, 지연 컨슈밍 시간 사이에 해당 row에 변경이 생기면 무조건 검증에 실패합니다. 따라서 레코드와의 검증이 1차로 실패하면, 검증 시점의 Source row를 추가로 조회해 해당 값과 Target row를 다시 비교하는 동작을 추가했습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;복구&lt;/h3&gt;
+
+&lt;p&gt;검증 실패 건에 대해 복구 시점의 데이터를 재조회해 다시 검증하고, 실제로 불일치가 발생하면 Target DB에 업데이트합니다. 복구는 자동 및 수동으로 수행할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/5.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;기본 복구 흐름&lt;/h4&gt;
+
+&lt;ol&gt;
+&lt;li&gt;상태 DB에 검증 실패 row를 INSERT합니다.  &lt;/li&gt;
+&lt;li&gt;공통 복구 로직을 수행합니다.  &lt;/li&gt;
+&lt;li&gt;복구 완료된 건들을 다시 검증합니다. &lt;br /&gt;
+&lt;ul&gt;&lt;li&gt;복구 완료 30분이 지난 시점에 실제 일치하는지 다시 확인합니다.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;복구 완료된 건들에 대해 상태 DB에 row DELETE를 수행합니다.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h4 id=""&gt;순단 자동 복구&lt;/h4&gt;
+
+&lt;p&gt;일시적인 오류로 복제에 실패하는 상황을 대비합니다. 검증 실패가 발견되면 5분 뒤 자동으로 복구를 수행합니다.&lt;/p&gt;
+
+&lt;p&gt;동일 row에 대해 연속 UPDATE가 발생하면 검증에 실패할 수 있습니다. 이 경우 5분이 지난 후 데이터를 재조회해 검증하므로, 실제 복구 수행은 없이 자연 해소를 기대할 수 없습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;장애 자동 복구&lt;/h4&gt;
+
+&lt;p&gt;순단이 지속되어 장애로 이어지는 상황을 대비합니다. 순단 복구를 먼저 시도했지만 복구되지 않은 row에 대해 배치로 재시도합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;수동 복구&lt;/h4&gt;
+
+&lt;p&gt;별도의 어드민 페이지를 구성해 실패한 레코드를 조회하고 API를 통해 복구를 수행합니다. 장애 자동 복구의 경우 배치이므로, 별도 범위를 지정해 수동 실행을 수행할 수도 있습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;개선 사항&lt;/h2&gt;
+
+&lt;p&gt;ergate에서는 기존 mig-data 대비 다음과 같은 사항을 개선했습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;기능 개선&lt;/h3&gt;
+
+&lt;h4 id="ddl"&gt;DDL 실행 순서 의존성 제거&lt;/h4&gt;
+
+&lt;p&gt;앞에서 설명한 개선 필요 사항 중 기존 mig-data에서는 Source, Target의 칼럼 추가 순서가 중요하다는 제약 사항이 있었습니다. Source에 A 칼럼이 추가된 경우 Target으로 복제를 수행하는 시점에는 A 칼럼을 모르기 때문이었습니다. 그래서 이전에는 DDL 작업이 있는 경우 DBA가 칼럼 추가 순서에 주의해서 작업을 진행해야 했습니다.&lt;/p&gt;
+
+&lt;p&gt;DDL 작업은 보통 운영 영향도를 낮추기 위해 새벽에 수행합니다. 그리고 관련 데이터의 인입은 별도 소스 코드 배포 이후 진행되는 상황이었습니다. 결국, DDL 수행과 실제 데이터 인입 시점은 다르다는 결론을 낼 수 있었습니다.&lt;/p&gt;
+
+&lt;p&gt;그래서 ergate에서는 &lt;strong&gt;칼럼을 캐싱해두는 전략&lt;/strong&gt;을 사용했습니다. spring-jdbc의 SqlParameterSource와 캐싱된 스키마/쿼리를 이용해 PreparedStatement를 재사용하며, 복제 시점에 캐싱되어 있는 칼럼 데이터만 사용합니다(자세한 내용은 뒤에서 설명).&lt;/p&gt;
+
+&lt;p&gt;칼럼 추가 순서에 따른 동작은 다음과 같습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Source에 먼저 칼럼이 추가된 경우: 캐싱된 Target statement는 해당 칼럼을 알지 못하므로 무시하고, Target statement 갱신 후 데이터가 반영&lt;/li&gt;
+&lt;li&gt;Target에 먼저 칼럼이 추가된 경우: Source에서 넘어온 데이터가 없으므로 null로 반영&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;다만 운영 시 하나의 예외 사항이 존재하는데, 바로 '칼럼 drop' 시점입니다. 앞에서 설명한 대로 statement를 캐싱해두고 재사용하는데, 칼럼이 drop되는 시점에 기존 statement를 사용하면 &lt;strong&gt;쿼리 수행 시점에 알 수 없는 칼럼&lt;/strong&gt;이기 때문에 오류가 발생합니다. 이때 개발자 레벨에서 다음과 같은 대응이 필요합니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Flink job으로 주입되는 별도 복제 설정 'ignore-columns'를 미리 추가하고 반영해 둠&lt;/li&gt;
+&lt;li&gt;statement 생성 시점에 해당 칼럼을 미리 제외 &lt;img src="/content/images/2025/11/6-1.png" alt="" title="" /&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;스키마 정보의 주기적인 조회 및 갱신&lt;/h4&gt;
+
+&lt;p&gt;JDBC API에서는 스키마 정보를 제공하는 &lt;a href="https://docs.oracle.com/javase/8/docs/api/java/sql/DatabaseMetaData.html"&gt;DatabaseMetadata&lt;/a&gt;라는 클래스가 존재합니다. 해당 클래스로 런타임 호출 시점의 테이블 목록, 스키마(PK, 칼럼 등)을 가져올 수 있습니다. mig-data에서도 이 API를 이용하여 자체 스키마를 구성했고, ergate에서도 동일하게 이용했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;java.sql.Connection#getMetadata()&lt;/strong&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;/**
+  * Retrieves a {@code DatabaseMetaData} object that contains
+  * metadata about the database to which this
+  * {@code Connection} object represents a connection.
+  * The metadata includes information about the database's
+  * tables, its supported SQL grammar, its stored
+  * procedures, the capabilities of this connection, and so on.
+  *
+  * @return a {@code DatabaseMetaData} object for this
+  *         {@code Connection} object
+  * @throws  SQLException if a database access error occurs
+  * or this method is called on a closed connection
+  */
+DatabaseMetaData getMetaData() throws SQLException;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;그렇지만 기존 서비스에서 사용하던 Oracle DB에서 예외가 있었습니다. 바로 스키마 상에 PK를 정의해 두지 않고 논리적으로 사용하는 PK가 따로 존재하는 상황이었습니다. 해당 예외를 위해 다음과 같이 복제 설정에 별도로 PK 목록을 기입해두어 사용했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/7-1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;이렇게 만든 스키마 정보를 Flink(복제/검증), Spring(복구) 모두에서 가지고 있어야 했으므로, 저희는 다음과 같이 구성했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Spring: 실제 DB 조회 및 자체 정의 객체로 변환&lt;/li&gt;
+&lt;li&gt;Flink: Spring으로 HTTP API 호출을 통해 조회&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Flink의 경우 job의 병렬도(parallelism)가 높고 커넥션 공유가 어려워, DB보다 상대적으로 저렴한 HTTP를 이용했습니다. 또한 개별 단위마다 캐시를 적용해 커넥션 리소스를 절약하고 내결함성(fault tolerance)을 확보했습니다.&lt;/p&gt;
+
+&lt;p&gt;그리고 Flink job에서 런타임에 스키마 변경을 감지하면, 기존에 사용하던 PreparedStatement에 남아있는 데이터는 flush하고 새로운 메타데이터에 대한 PreparedStatement로 변경하는 동작을 구현해 두었습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;일시 복제 중단 해소&lt;/h4&gt;
+
+&lt;p&gt;ergate에서는 복제 단계에서 실패가 발생하더라도 해당 건은 무시하고 후속 데이터를 계속 복제하며, 실패 건은 &lt;strong&gt;검증 단계에서 검출되어 복구&lt;/strong&gt;하는 것을 의도했습니다. 물론 잘못 검출되는 경우도 발생할 수 있으므로 복구 단계에서는 앞서 기술한 대로 재검증을 수행합니다.&lt;/p&gt;
+
+&lt;p&gt;Oracle DB의 경우 read only (slave) DB를 사용해 검증하는데, 마스터와 슬레이브 사이의 차이로 인해 실패 건으로 잘못 검출될 수 있습니다. 따라서 복구 시에 검증할 데이터를 마스터에서 재조회하여 잘못 검출된 경우 정상 처리합니다.&lt;/p&gt;
+
+&lt;p&gt;판매자 DB의 경우 순단으로 인해 샤딩 키 조회에 실패해 복제에 실패할 수 있습니다. 이 경우에는 샤딩 키를 재조회해 복구합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;다양한 데이터 복구 편의 기능 제공&lt;/h4&gt;
+
+&lt;p&gt;앞에서 설명한 다수의 자동/수동 복구 흐름을 구성해, 이슈 발생 시에도 빠르게 복구할 수 있도록 접근성을 개선했습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;복제 설정 개선&lt;/h4&gt;
+
+&lt;p&gt;기존 mig-data 대비 개발 편의성을 위해 복제 설정도 개선했습니다. 먼저, mig-data에서는 2가지 주요 기능이 있었고 해당 기능은 ergate에서도 필요한 상황이었습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;findckey: Target DB의 샤딩 키를 찾는 기능(예: 주문 DB에서 상품주문 테이블을 조회해 판매자 번호(샤딩 키) 목록을 가져와야 하는 경우)&lt;/li&gt;
+&lt;li&gt;columnreplace: Target DB에만 존재하는 칼럼에 대한 데이터를 타 DB에서 조회 및 구성하여 채우는 기능&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;findckey를 기준으로 예시를 들면, 먼저 기존에는 조회하고자 하는 데이터에 대한 쿼리를 설정 파일에 직접 기입해 두었습니다. 그리고 이렇게 위와 기입된 쿼리는 동일 쿼리의 이전 실행 여부와 관계 없이 전부 실행이 되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/8-1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;ergate에서는 다음과 같이 설정 파일을 간소화했습니다. 설정에는 enum 값만 선언하고, 쿼리와 로직을 Java 클래스로 옮겼습니다. 또한, 하나의 처리 단위(tx)에서 같은 PK에 대해 값을 구해 두었다면 추가 I/O가 일어나지 않도록 캐싱하는 로직도 추가했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/9-1.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h3 id=""&gt;성능 개선&lt;/h3&gt;
+
+&lt;h4 id="flinkjdbcsink"&gt;Flink JdbcSink 확장&lt;/h4&gt;
+
+&lt;p&gt;Flink의 기본 구현체인 &lt;a href="https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/connectors/datastream/jdbc/"&gt;JdbcSink&lt;/a&gt;는 고정된 batchSize와 batchIntervalMs를 사용하고 있습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;batchSize: 설정값 이상으로 데이터 인입 시 I/O&lt;/li&gt;
+&lt;li&gt;batchIntervalMs: 설정한 값 주기마다 I/O&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;이 경우 '데이터량 증가 → executeBatch I/O blocking 증가 → 성능 저하'라는 흐름을 피할 수 없었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/10.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;저희는 기본 구현을 확장해, &lt;strong&gt;데이터 유동량에 따라 동적으로 값을 조정하는 DynamicBatchSize 개념&lt;/strong&gt;을 추가로 구현했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/11.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;데이터 유동량 증가 시 동적으로 설정값을 변경해 blocking 호출 수를 제어합니다. 이때, TCP 혼잡 제어 로직과 유사하게 이전 트래픽을 기반으로 다음과 같이 값을 제어합니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;50~100ms 사이에 현재 할당량을 채웠으면 미조정&lt;/li&gt;
+&lt;li&gt;할당량을 채우는 데 100ms가 지났다면 할당량 감량&lt;/li&gt;
+&lt;li&gt;할당량을 채우는 데 50ms가 지나지 않았다면 할당량 증량&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=""&gt;비동기 검증&lt;/h4&gt;
+
+&lt;p&gt;초기에는 검증을 동기로 수행해 병렬도를 높게 설정해야 했습니다. 그러나 검증 순서는 크게 중요하지 않다고 판단해, &lt;a href="https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/datastream/operators/asyncio/"&gt;AsyncDataStream&lt;/a&gt;을 이용해 병렬도를 낮게 설정해도 충분한 성능을 내도록 했습니다.&lt;/p&gt;
+
+&lt;h4 id="1"&gt;1초 내 복제 보장&lt;/h4&gt;
+
+&lt;p&gt;Flink JdbcSink에서 제공되는 batchIntervalMs 설정으로, 추가 구현 없이 목표를 달성할 수 있었습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;아키텍처 성능 검증&lt;/h2&gt;
+
+&lt;p&gt;네이버페이 주문 서비스는 DB 간 복제 지연에 굉장히 민감한 시스템입니다. 그래서 ergate로 본격적으로 전환하기 전, &lt;strong&gt;우리가 설계한 아키텍처 및 데이터 흐름이 문제없이 의도대로 동작하는지&lt;/strong&gt; 검증이 필요했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/12.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;먼저 성능 부분부터 살펴보았습니다. 기존 Write(CUD) QPS 대비 10배 이상 처리하는 것이 목표였습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;테스트 환경 구축&lt;/h3&gt;
+
+&lt;p&gt;기존 Source(주문) / Target(판매자) DB와 동일한 스키마의 논리 DB를 생성하고, 전용 nbase-cdc 도 신규로 구축했습니다. 추가로 &lt;a href="https://github.com/naver/fixture-monkey"&gt;fixture-monkey&lt;/a&gt;를 이용해 자체 테스트 데이터 생성 도구 banana를 만들어서 목표 QPS를 재현했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/13.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h3 id=""&gt;최초 테스트 결과&lt;/h3&gt;
+
+&lt;p&gt;하나의 레코드를 처리하는 데 Source 커밋부터 Target 커밋까지의 &lt;strong&gt;시간이 200ms나 소요&lt;/strong&gt;되는 것을 확인했습니다. 병렬도를 높여 대응할 수도 있었지만 저희는 '&lt;strong&gt;DB 커넥션은 비싼 자원이다&lt;/strong&gt;', '&lt;strong&gt;Flink task slot 또한 한정적이다&lt;/strong&gt;'라는 것을 전제로 개선 지점을 찾아보았습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;개선 지점 분석 및 해결 과정&lt;/h3&gt;
+
+&lt;p&gt;원인을 분석하기 위해 개발 환경에서 flame graph 옵션을 켜서 전체 흐름을 확인했습니다.(다음은 실제 이슈 시점의 화면이 아니라 flame graph 옵션을 켠 경우 웹 UI에서 볼 수 있는 화면의 예입니다.)&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/14.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;발견 및 대응 시간 순서에 따라 살펴보겠습니다.&lt;/p&gt;
+
+&lt;h4 id="1task"&gt;1. task 간 객체 직렬화 성능 이슈&lt;/h4&gt;
+
+&lt;p&gt;A task에서 B task로 객체 이동 시 직렬화(serialize)/역직렬화(deserialize)에 소요되는 시간을 개선할 필요가 있었습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;✅ 해결: object reuse 옵션을 활성화해 같은 task manager 내에서 객체 이동 시에는 직렬화를 수행하지 않음&lt;/li&gt;
+&lt;li&gt;결과: 200ms → 130ms&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;setter 사용 시 동시성 이슈가 생길 수 있지만 저희 코드에는 해당 사례가 없었습니다.&lt;/p&gt;
+
+&lt;h4 id="2taskslot"&gt;2. 데이터 스큐(특정 task slot으로 몰림) 이슈&lt;/h4&gt;
+
+&lt;p&gt;Kafka 레코드 키(구매자 번호)를 그대로 Flink 키로 사용해, Kafka 파티션 스큐가 Flink slot까지 이어지고 처리가 몰리는 문제가 있었습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;✅ 해결: 구매자 번호 + 테이블명으로 Flink 키를 구성해 스큐 분산&lt;/li&gt;
+&lt;li&gt;결과: 130ms → 70ms&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/15.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h4 id="3dbio"&gt;3. DB I/O로 인한 성능 제한&lt;/h4&gt;
+
+&lt;p&gt;I/O의 성능 자체는 제어할 수 없으므로 I/O의 횟수를 줄여야 했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;✅ 해결: &lt;a href="#flink-jdbcsink-확장"&gt;Flink JdbcSink 확장&lt;/a&gt;으로 I/O 횟수 감소&lt;/li&gt;
+&lt;li&gt;결과: 70ms → 40ms&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id="4flinkhttpsflinkapacheorg20220518gettingintolowlatencygearswithapacheflinkpartoneflushnetworkbuffersearly"&gt;4. &lt;a href="https://flink.apache.org/2022/05/18/getting-into-low-latency-gears-with-apache-flink-part-one/#flush-network-buffers-early"&gt;Flink 네트워크 버퍼&lt;/a&gt; 설정 해제&lt;/h4&gt;
+
+&lt;p&gt;네트워크 버퍼를 사용하지 않으면 처리량이 줄어드는 대신 지연 시간(latency)을 줄일 수 있습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;✅ 해결: 네트워크 버퍼를 사용하지 않도록 설정(execution.buffer-timeout을 0으로 설정)&lt;/li&gt;
+&lt;li&gt;결과: I/O 지연 시간 소폭 감소&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id="5"&gt;5. 검증 성능 개선&lt;/h4&gt;
+
+&lt;p&gt;검증 시 복제와 동일하게 I/O가 발생하고 개별 객체의 비교 로직이 존재하므로 검증 성능을 개선할 필요가 있었습니다. 검증 순서는 중요하지 않으므로 검증을 동기로 수행할 필요가 없다고 판단했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;✅ 해결: 검증 동작을 비동기로 변경&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=""&gt;아키텍처 내결함성 검증&lt;/h2&gt;
+
+&lt;p&gt;성능이 충분히 개선된 것을 확인한 후, 각 지점에서 장애가 발생했을 때 우리가 설계한 자동 복구가 정상적으로 동작하는지, 그리고 전체 동작에 이상이 없는지 확인하는 작업을 진행했습니다.&lt;/p&gt;
+
+&lt;p&gt;ergate는 크게 애플리케이션과 DB로 장애 지점을 나눌 수 있습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;애플리케이션 테스트&lt;/h3&gt;
+
+&lt;p&gt;저희가 구현한 Flink, Spring 레벨의 각 지점마다 장애를 유발하고, 예상한 기대 동작과 실제 동작을 확인했습니다.&lt;/p&gt;
+
+&lt;h4 id="1flinkjobmanager"&gt;1. Flink job manager&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;장애: leader pod이 내려감&lt;/li&gt;
+&lt;li&gt;기대 동작
+&lt;ol&gt;&lt;li&gt;follower가 새로운 leader로 승격&lt;/li&gt;
+&lt;li&gt;이전 leader에서 수행하고 있던 job을 전부 신규 leader가 재시작해 RUNNING 상태로 동작&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;
+&lt;li&gt;✅ 정상 동작 확인: 체크포인트 유실 등의 이슈가 있었으나 스토리지 타입으로 S3 적용 후 해결됨&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id="2flinktaskmanager"&gt;2. Flink task manager&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;장애: task를 수행하고 있는 pod이 내려감&lt;/li&gt;
+&lt;li&gt;기대 동작: 중지된 task가 다른 pod에 다시 배치되어 RUNNING 상태로 동작&lt;/li&gt;
+&lt;li&gt;✅ 정상 동작 확인&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id="3spring"&gt;3. Spring 모듈 장애&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;장애: API를 제공해주는 Spring 모듈이 내려감&lt;/li&gt;
+&lt;li&gt;기대 동작
+&lt;ul&gt;&lt;li&gt;Flink job에서 Spring 모듈로 테이블 메타데이터 조회 호출 중에 Spring 모듈이 내려가더라도 Flink에서는 캐싱해 둔 메타데이터 정보를 사용&lt;/li&gt;
+&lt;li&gt;Spring은 복구를 담당하므로 메인 복제/검증 로직에는 영향이 없음&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;✅ 정상 동작 확인&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;위와 같이 전체 정상 동작을 확인했고 job manager HA 동작 관련 보완이 필요한 부분도 확인하여 대응했습니다.&lt;/p&gt;
+
+&lt;h3 id="db"&gt;DB 모의 장애 테스트&lt;/h3&gt;
+
+&lt;p&gt;다음으로 Source, Target DB가 내려간 경우를 확인해 보고자 했습니다. nBase-T 특성상 신규 구축이 쉽지 않아서 기존 개발 환경에서 사용하는 장비에 논리 DB를 추가한 형태였기 때문에, 다양한 부서에서 활용 중인 개발 물리 장비를 이 테스트를 위해 물리적으로 내릴 수는 없는 상황이었습니다.&lt;/p&gt;
+
+&lt;p&gt;그래서 DB Connection 코드를 확장하고 사내의 feature toggle(&lt;a href="https://github.com/Unleash/unleash"&gt;unleash&lt;/a&gt; 기반) 플랫폼을 활용해 &lt;strong&gt;모의 장애 테스트를 수행&lt;/strong&gt;했습니다. 다음은 저희가 추가한 코드의 일부입니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;public class BoomableNbaseConnection extends NbaseDynamicConnection {
+ @Override
+ public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
+  mayBoom();
+  return super.prepareStatement(sql, autoGeneratedKeys);
+ }
+
+ ...
+
+ private void mayBoom() throws SQLException {
+  if ((source &amp;amp;&amp;amp; !FEATURE_TOGGLE.isEnabled(SOURCE_BOOM))
+   || (!source &amp;amp;&amp;amp; !FEATURE_TOGGLE.isEnabled(TARGET_BOOM))) {
+   return;
+  }
+  try {
+   Thread.sleep(3000);
+  } catch (InterruptedException e) {
+   Thread.currentThread().interrupt();
+  }
+  throw new SQLException("못 지나간다!");
+ }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id="1sourcedb"&gt;1. Source DB 장애&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;기대 동작
+&lt;ul&gt;&lt;li&gt;샤딩 키 조회 실패 시: 복제 실패 → 전체 검증 실패 → ergate mySQL에 실패 상태 저장&lt;/li&gt;
+&lt;li&gt;Source 재조회 검증 실패 시: ergate mySQL에 실패 상태 저장&lt;/li&gt;
+&lt;li&gt;장애 해소 시점: 데이터 복구 → 재검증 시 전체 일치&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;✅ 정상 동작 확인&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id="2targetdb"&gt;2. Target DB 장애&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;기대 동작
+&lt;ul&gt;&lt;li&gt;복제 실패 시: 전체 검증 실패 → ergate mySQL에 실패 상태 저장&lt;/li&gt;
+&lt;li&gt;장애 해소 시점: 데이터 복구 → 재검증 시 전체 일치&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;그런데 검증 시점에 검증할 Target row를 가져오기 위해 Target DB에 커넥션을 맺으려고 시도할 때 오류가 발생했고, 신규 커넥션을 맺기 위해 대기하는 시간이 누적되면서 리소스가 소모되어 Flink 장애가 발생했습니다. Source DB 장애 테스트 시 이 문제가 발생하지 않은 것은, 검증 시 Kafka 레코드와 Target row가 일치하지 않는 경우에만 선택적으로 Source DB 커넥션을 맺었기 때문입니다.&lt;/p&gt;
+
+&lt;p&gt;이 이슈를 해결하기 위해 서킷 브레이커를 도입했습니다. DB 접근 오류 발생 시 검증 쿼리를 수행하고, 5회 이상 실패 시 서킷을 오픈합니다. 서킷 오픈 시에는 검증하지 않고 바로 DLQ로 전송합니다. 서킷 브레이커는 다음과 같이 구현했습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
+private final AtomicLong circuitOpenTime = new AtomicLong(0);
+
+@Override
+public RowVerificationResult verify(VerifySource source) {
+ if (circuitOpened()) {
+  return RowVerificationResult.circuitOpened(source, source.sourceData());
+ }
+
+ try {
+  RowVerificationResult result = delegate.verify(source);
+  consecutiveFailures.set(0); // Reset on success
+  return result;
+ } catch (DataAccessException exception) {
+  // 해당 target ckey로 validation query 수행
+  // 실패 시 target circuit 적립
+  this.executeValidationQuery(source);
+  return RowVerificationResult.unhandledException(source, source.sourceData(), exception);
+ } catch (Exception exception) {
+  return RowVerificationResult.unhandledException(source, source.sourceData(), exception);
+ }
+}
+
+private boolean circuitOpened() {
+ if (circuitOpenTime.get() == 0) {
+  return false;
+ }
+
+ if (System.currentTimeMillis() - circuitOpenTime.get() &amp;gt;= openDurationMs) {
+  log.warn("Circuit breaker timeout has been reached. Changing to half-open state.");
+  circuitOpenTime.set(0);
+  return false;
+ }
+
+ return true;
+}
+
+private void executeValidationQuery(VerifySource verifySource) {
+ try {
+  targetJdbcOperations.query(validationQuery, buildCkeyParameter(verifySource), rs -&amp;gt; null);
+ } catch (DataAccessException ex) {
+  log.error("Failed to validate DB operations", ex);
+  if (consecutiveFailures.incrementAndGet() &amp;gt;= FAILURE_THRESHOLD) {
+   circuitOpenTime.set(System.currentTimeMillis());
+   log.warn("Circuit has been opened due to {} consecutive failures.", FAILURE_THRESHOLD);
+  }
+ }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=""&gt;전환 과정&lt;/h2&gt;
+
+&lt;p&gt;기존 복제를 담당하던 mig-data를 어떻게 ergate로 전환했는지 과정을 살펴보겠습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;기본 전략&lt;/h3&gt;
+
+&lt;h4 id=""&gt;복제 전략&lt;/h4&gt;
+
+&lt;p&gt;복제 전략으로는 mig-data와 ergate가 각각 서로를 모르는 상태의 &lt;strong&gt;중복 복제&lt;/strong&gt;를 선택했습니다. 이는 mig-data에 중복 방어 로직을 추가하는 것이 기존 복제 동작에 어떤 영향을 줄지 모르고, 만약 이슈가 발생한다면 운영 환경에서 위험이 크다고 판단했기 때문입니다.&lt;/p&gt;
+
+&lt;p&gt;중복 복제로 인해 일시적으로 과거로 돌아갈 수는 있지만, 충분히 빠르기 때문에 사용자는 인지할 수 없고 최종적으로는 일치할 것이라고 판단했습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;검증 전략&lt;/h4&gt;
+
+&lt;p&gt;검증은 실제 데이터를 건드리지 않고, 자동 복구를 배포해두지 않으면 검출되더라도 문제가 없습니다. 따라서 &lt;strong&gt;ergate 검증을 제일 먼저 배포&lt;/strong&gt;하여 일정 기간동안 오검출, 과검출이 없는지 확인하는 과정을 가졌습니다.&lt;/p&gt;
+
+&lt;p&gt;그리고 평소 정상 복제 상황 하에서는 검증에서 검출되는 건이 없기 때문에, &lt;strong&gt;만약을 위한 정답 선택지로 mig-data 검증을 유지&lt;/strong&gt;하는 것이 좋다고 판단했습니다. 따라서 mig-data 검증의 종료는 제일 마지막으로 미루고, ergate 복제로 전환한 후에도 mig-data 검증을 일정 기간 유지했습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;단계별 테이블 선별 및 순차 전환&lt;/h4&gt;
+
+&lt;p&gt;복제 전략으로 중복 복제를 선택했기 때문에, 전체를 한 번에 전환하는 방식은 DB 리소스 사용량 증가의 위험이 있었습니다. 따라서 영향도가 낮은 테이블부터 시작해 차례로 투입하는 방식으로 전환을 진행했습니다.&lt;/p&gt;
+
+&lt;p&gt;1~3차로 대상 테이블을 분류해 순차적으로 전환했으며(예: 1차 5개, 2차 13개, 3차 잔여), 매 차수가 종료되는 시점에 mig-data 복제를 종료하고 ergate 단독 복제로 변경했습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;기존 복제 흐름&lt;/h3&gt;
+
+&lt;p&gt;실제 전환으로 넘어가기 전에, 먼저 기존 mig-data의 복제 흐름부터 살펴보겠습니다. 기존에는 mig-data(비동기) + forceSync(동기) 복제가 수행되었습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/16.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;mig-data Java 프로세스: Kafka 레코드를 컨슈밍 → Target에 복제&lt;/li&gt;
+&lt;li&gt;forceSync(&lt;a href="#용어-설명"&gt;용어 설명&lt;/a&gt; 참고): API 기반 Source → Target에 수동 복제&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;복제가 양쪽에서 수행되면서 회귀 가능성은 존재했지만 다음과 같은 추가 장치가 있었습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;과거 데이터로의 회귀 가능성 및 해결&lt;/h4&gt;
+
+&lt;p&gt;먼저 forceSync의 동작 방식을 살펴보면 다음과 같습니다.&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;서비스에서 사용 중인 '수정 시간' 칼럼을 비교해, Target에 최신 데이터가 복제되어 있는지 판단  &lt;/li&gt;
+&lt;li&gt;최신이 아니라면 현 시점 기준으로 Source SELECT → Target에 복제 수행&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;그런데 단기간에 A → B → C의 변경이 일어난 경우, 보통 forceSync의 복제가 동기로 더 빠르게 수행되기 때문에 다음과 같은 상황이 발생할 수 있습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/17.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;forceSync: 최신 상태인 C로 반영&lt;/li&gt;
+&lt;li&gt;mig-data: A → B → C 순서로 재반영&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;그 결과 &lt;strong&gt;일시적으로 과거 데이터로 돌아갈 가능성&lt;/strong&gt;이 있었습니다. 그래서 '복제 반영 시점'의 의미를 갖는 칼럼 sync_seq를 추가해, 복제 쿼리에 다음과 같은 조건을 추가했습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-sql"&gt;/* IS NULL 조건: 신규 추가한 칼럼이기 때문에 NULL인 경우에는 무조건 반영 */
+/* &amp;gt;= 조건: 하위 참고 */
+WHERE sync_seq IS NULL OR :commit_ts &amp;gt;= sync_seq
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;복제 시 sync_seq 데이터(:commit_ts)는 다음과 같습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;forceSync: Source SELECT 시점 시간&lt;/li&gt;
+&lt;li&gt;mig-data: Source 커밋 시간&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;code&gt;:commit\_ts &amp;gt;= sync\_seq&lt;/code&gt;는 반영할 데이터의 Source 커밋 시간이 Target 데이터의 Source 커밋 시간보다 과거라면 무시하라는 의미입니다.&lt;/p&gt;
+
+&lt;p&gt;여기서 조건이 &lt;code&gt;&amp;gt;&lt;/code&gt;가 아니라 &lt;code&gt;&amp;gt;=&lt;/code&gt;인 이유는 기존에 &lt;code&gt;ms&lt;/code&gt;를 절삭해 메시지를 발행하고 있었기 때문입니다. 단위인 ms를 변경하면 반영이 누락될 가능성이 있고, 메시지에 ms를 포함하도록 변경하면 mig-data의 동작을 예측하기 어렵습니다. 장애에 민감하기 때문에 유지하기로 결정했습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;전환 투입 - 동시 복제&lt;/h3&gt;
+
+&lt;p&gt;앞서 말씀드렸듯이 mig-data와 ergate는 서로를 모르는 상태로 각각 복제를 수행하는 전략을 세웠습니다. 그래서 기존 복제 흐름에 ergate가 추가된 다음과 같은 형태로 투입을 시작했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/18.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;이와 같은 흐름으로 1주일간 진행해 &lt;strong&gt;데이터의 불일치 여부와 Flink 클러스터 모니터링&lt;/strong&gt;을 수행했습니다.&lt;/p&gt;
+
+&lt;p&gt;추가로, 새롭게 참여한 ergate도 forceSync와의 관계는 mig-data에서와 동일하게 유지가 필요했습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;과거 회귀 방지를 위한 별도 전용 칼럼 추가&lt;/h4&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/19.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;ergate와 forceSync와의 회귀 방지를 위한 별도 전용 칼럼 'rpc_time'을 추가했습니다. 로직은 mig-data와 동일하게 구성해 과거 회귀 방지를 달성했습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;최종 - 단독 복제&lt;/h3&gt;
+
+&lt;p&gt;1주일간의 동시 복제를 진행한 후 mig-data 복제를 중단하여 다음 그림과 같이 ergate 단독 복제로 전환했습니다. 앞에서 설명드린 단계별 전환에서 매 단계마다 이 전환 과정을 반복했습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/20.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h2 id=""&gt;트러블슈팅&lt;/h2&gt;
+
+&lt;p&gt;ergate 프로젝트를 진행하면서 모든 것이 순탄할 수는 없었습니다. 결과로 넘어가기 전, Flink를 처음 사용하면서 겪었던 문제를 짚고 넘어가보겠습니다.&lt;/p&gt;
+
+&lt;h3 id="jobmanagermetaspaceoom"&gt;job manager Metaspace OOM&lt;/h3&gt;
+
+&lt;p&gt;이 문제는 저희가 세션 모드를 선택했기 때문에 발생했습니다. 먼저 동작 방식을 한 번 보겠습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/21.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;span class="caption"&gt;Flink 아키텍처(출처: &lt;a href="https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/concepts/flink-architecture/"&gt;Flink Architecture&lt;/a&gt;)&lt;/span&gt;&lt;/p&gt;
+
+&lt;h4 id="flinkjob"&gt;작성한 Flink job이 수행되는 방식&lt;/h4&gt;
+
+&lt;ol&gt;
+&lt;li&gt;작성한 Flink job(이하 user code)을 job manager로 제출(submit)  &lt;/li&gt;
+&lt;li&gt;user code는 job manager에서 초기화된 후 직렬화되어 task manager로 전달  &lt;/li&gt;
+&lt;li&gt;task manager가 받아서 user code 실제 수행&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;여기서 Flink JVM 클래스로더의 특수한 점을 발견했습니다.
+사용자가 제출한 user code는 Flink에서 읽어들이고 관리할까요?&lt;/p&gt;
+
+&lt;h4 id="flink"&gt;Flink 클래스 로딩 메커니즘 및 이슈&lt;/h4&gt;
+
+&lt;p&gt;Flink의 클래스 로딩 메커니즘은 세션 모드 클러스터를 유지하면서 job/task manager 구동을 위한 Parent 클래스로더가 존재하고, 사용자가 제출한 user code는 Child 클래스로더가 읽어들이는 구조입니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/22.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Parent 클래스로더: job/task manager 런타임&lt;/li&gt;
+&lt;li&gt;Child 클래스로더: user code 로드. job이 종료되는 경우 본인이 소멸하면서 읽어들인 자원 해제&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;여기서 Child 클래스로더가 읽어들인 클래스에 대한 참조를 Parent가 보는 경우에 이슈가 발생했습니다. 예를 들어, Parent 클래스로더 어딘가에서 다음과 같은 코드를 참조한다고 가정하겠습니다.(예: Flink RestClient → Jackson ObjectMapper의 static Map)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class="language-java"&gt;// user code에서 UserClass1 static field를 정의한 경우
+private static final UserClass1 USER_CLASS = UserClass1.instanceOf()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Child 클래스로더의 소멸 시점에 Parent 클래스로더 어딘가에서 참조 중이기 때문에 소멸하지 못해, 자원을 해제할 수 없습니다. 그 결과, job이 여러 번 배포되는 과정에서 이 문제가 누적되어 OOM이 발생합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;해결&lt;/h4&gt;
+
+&lt;p&gt;여러 실험 결과, 'Parent에 없는 user code 클래스가 static field 타입으로 정의된 경우' 문제가 발생했습니다. 따라서 관련 라이브러리를 fat JAR로 만들어 Flink 클러스터 구동 시점에 포함시키거나, static 정의를 피해 코드를 수정하는 방식으로 해결했습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Flink 도커 이미지 빌드 시점에 필요 라이브러리 코드 포함
+&lt;ul&gt;&lt;li&gt;DB 드라이버 등 static resource를 관리하는 'ergate-flink-runtime' 저장소를 분리해 uber(fat) JAR 생성&lt;/li&gt;
+&lt;li&gt;이미지 빌드 시 $FLINK_HOME/lib 하위로 생성한 JAR 포함&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;user code에서 static resource 사용 지양
+&lt;ul&gt;&lt;li&gt;&lt;a href="https://d2.naver.com/helloworld/9222129"&gt;ArchUnit 테스트&lt;/a&gt;를 추가해 기존/신규 코드 감시&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;ArchUnit 테스트 코드는 다음과 같습니다.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/23.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;h3 id="jobmanagersplitbrain"&gt;job manager split brain&lt;/h3&gt;
+
+&lt;p&gt;이 문제는 Kubernetes를 이용한 HA 구성 시 발생했습니다. 아무런 전조 증상 없이 갑자기 간헐적으로 job manager role change가 일어나고, 종국에는 split brain 이슈까지 발생했습니다.&lt;/p&gt;
+
+&lt;p&gt;좀 더 자세히 살펴보면, Kubernetes API 통신 간 leader 측의 네트워크 순단이 발생하는 찰나에 follower가 leader를 빼앗는 상황이 발생했습니다. 보통의 경우 기존 leader는 follower로 다시 내려가지만, 모종의 이유로 기존 leader가 지위를 내려놓지 못했습니다. 이 상황에서 task manager는 어떤 leader와 통신해야 하는지 혼란에 빠졌고, job도 다시 스케줄링되지 못해 복제가 멈췄습니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;해결&lt;/h4&gt;
+
+&lt;p&gt;문제가 발생한 Kubernetes의 HA 관련 설정을 확인해 보겠습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;lease-duration: leader로 인정되는 최대 시간&lt;/li&gt;
+&lt;li&gt;renew-deadline: leader lease를 갱신해야 하는 최대 시간. 갱신 실패 시 리더 자진 퇴임&lt;/li&gt;
+&lt;li&gt;retry-interval: lease 획득 또는 갱신 시도 주기&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;저희는 job manager 재배포 시 빠른 leader role change를 위해
+초기에 위 값들을 각각 5s, 5s, 1s로 설정했습니다. 여러 사례를 찾아보고 AI 서비스의 도움을 받은 결과, lease-duration과 renew-deadline의 값이 같으면 이와 같은 이슈가 발생할 수 있다는 사실을 알아냈습니다.&lt;/p&gt;
+
+&lt;p&gt;네트워크 순단 가능성을 인정하고, 설정값을 각각 30s, 20s, 6s로 변경하자 더 이상 이슈가 발생하지 않았습니다.&lt;/p&gt;
+
+&lt;h2 id=""&gt;결과&lt;/h2&gt;
+
+&lt;h3 id=""&gt;목표 전체 달성&lt;/h3&gt;
+
+&lt;p&gt;올해 1월 말 프로젝트를 시작하면서 세웠던 모든 목표를 달성했습니다. 시작 당시 2명 모두 기존 업무를 겸하고 있었기에 본격적인 작업은 3월부터 진행했고, 3명이 된 시점은 5월부터였습니다. 1년 내내 수행해도 시간이 부족할 것이라고 생각했지만, 1차 목표인 판매자 DB 전환을 7월에 완료했습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;서비스 이슈 없는 전환 완료&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src="/content/images/2025/11/24.png" alt="" /&gt;&lt;/p&gt;
+
+&lt;p&gt;전환 과정에서 데이터 관련 서비스 영향도 없었습니다. 위 이미지는 팀원 분께서 그 과정에서 재미로 만들어주신 이미지입니다.&lt;/p&gt;
+
+&lt;p&gt;잠깐의 해프닝 정도는 있었지만, 서비스에는 영향도가 거의 없는 수준으로,
+제목과 같이 무중단, 무장애 선언을 할 수 있는 수준이었습니다. 단계를 나누어 DB 부하도 없었고 데이터 사고와 사용자 문의도 없었습니다.&lt;/p&gt;
+
+&lt;h3 id=""&gt;기타&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;forceSync 컴포넌트 페이드아웃: ergate만으로도 충분히 빠르고 안정적이라고 결론지어, 현재는 실제 동작을 비활성화했으며 최종적으로 내리는 단계를 밟고 있습니다.&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://github.com/joelparkerhenderson/architecture-decision-record"&gt;ADR(Architecture Decision Record)&lt;/a&gt;: 전체 아키텍처의 결정 과정을 ADR로 남겨두어, 이후 이 프로젝트를 담당하는 인원이 결정 과정과 근거를 참고할 수 있도록 했습니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=""&gt;마치며&lt;/h2&gt;
+
+&lt;p&gt;지금까지 네이버페이 주문에서 DB 간 복제를 수행하는 도구인 ergate로의 전환 과정을 정리했습니다. 운영 중인 민감한 복제 도구를 이슈 없이 전환할 수 있었던 것에는, 7년이라는 장기간의 프로젝트를 진행하면서 쌓인 여러 노하우가 큰 역할을 했다고 생각합니다.&lt;/p&gt;
+
+&lt;p&gt;마치며 기존 복제 도구를 만들고 운영해주신 강철규 님께 감사 인사를 드립니다.&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <title>처음 만나는 OpenTelemetry (feat. Collector)</title>
+    <link rel="alternate" href="https://d2.naver.com/helloworld/1104856" />
+    <category term="hello world" />
+    <id>https://d2.naver.com/helloworld/1104856</id>
+    <updated>2025-11-19T11:20:02Z</updated>
+    <content type="html">&lt;p&gt;네이버 사내 기술 교류 행사인 NAVER ENGINEERING DAY 2025(10월)에서 발표되었던 세션을 공개합니다.&lt;br/&gt; &lt;/p&gt;
+
+&lt;div style="position: relative; max-width: 100%; padding-bottom: 56.25%; height: 0;"&gt;
+
+&lt;iframe width="800" height="450" src="https://tv.naver.com/embed/88602834?autoPlay=true" frameborder="0" allowfullscreen="" style="position: absolute; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"&gt;&lt;/iframe&gt;
+&lt;/div&gt;
+
+&lt;p&gt;&lt;br/&gt;&lt;/p&gt;
+
+&lt;h4 id=""&gt;발표 내용&lt;/h4&gt;
+
+&lt;p&gt;검색 모니터링 플랫폼인 SEER를 OpenTelemetry, OpenSource 기반으로 전환을 준비하며 OpenTelemetry에 대해 학습한 내용과, OpenTelemetry 생태계에 기여한 경험을 공유합니다.&lt;/p&gt;
+
+&lt;h4 id=""&gt;목차&lt;/h4&gt;
+
+&lt;ul&gt;
+&lt;li&gt;OpenTelemetry&lt;/li&gt;
+&lt;li&gt;OTLP&lt;/li&gt;
+&lt;li&gt;OpenTelemetry Collector&lt;/li&gt;
+&lt;li&gt;OpenTelemetry Collector - receiver&lt;/li&gt;
+&lt;li&gt;OpenTelemetry Collector - processor&lt;/li&gt;
+&lt;li&gt;OpenTelemetry Collector - exporter&lt;/li&gt;
+&lt;li&gt;OpenTelemetry Operator&lt;/li&gt;
+&lt;li&gt;OpenTelemetry Contribution&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;blockquote&gt;
+  &lt;h5 id="naverengineeringdaybr"&gt;&lt;strong&gt;◎ NAVER ENGINEERING DAY란?&lt;/strong&gt;&lt;br/&gt;&lt;/h5&gt;
+
+  &lt;p&gt;NAVER에서는 사내 개발 경험과 기술 트렌드를 교류를 할 수 있는 프로그램이 많이 있습니다. 그중 매회 평균 70개 이상의 발표가 이루어지는 NAVER ENGINEERING DAY를 빼놓을 수 없는데요. &lt;br /&gt;
+  2016년부터 시작된 ENGINEERING DAY는 실무에서의 기술 개발 경험과 새로운 기술과 플랫폼 도입 시 유용하게 활용될 수 있는 팁 등을 공유하며 서로 배우고 성장하는 네이버의 대표적인 사내 개발자 행사입니다. &lt;br /&gt;
+  올해 진행된 NAVER ENGINEERING DAY의 일부 세션을 공개합니다.&lt;/p&gt;
+&lt;/blockquote&gt;</content>
+  </entry>
+</feed>
