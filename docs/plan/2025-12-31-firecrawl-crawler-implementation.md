@@ -17,7 +17,7 @@ We need to crawl 115 tech blog posts from 7 companies and extract:
 
 ## Solution
 
-Use Firecrawl API with `rawHtml` format to extract publish dates via CSS selectors. Store scraped content in SQLite database (existing), and CSS selectors in JSON file.
+Use Firecrawl API with `rawHtml` format to extract publish dates via CSS selectors. Store scraped content in SQLite database. CSS selectors are hardcoded in TypeScript for type safety.
 
 ## Architecture
 
@@ -31,6 +31,23 @@ URLs (txt files) → Firecrawl API → Parse HTML → Extract Date → Save to D
 
 ### Files Structure
 
+```
+crawler/
+├── data/
+│   ├── urls/              # Source: URLs to scrape (115 total)
+│   │   ├── toss.txt       # 19 URLs
+│   │   ├── kakao.txt      # 9 URLs
+│   │   └── ...
+│   └── firecrawl/         # Saved API responses (JSON files)
+├── src/
+│   ├── index.ts           # CLI entry point
+│   ├── selectors.ts       # Load selectors & parse dates (TypeScript constants)
+│   ├── scraper.ts         # NEW: Main scraping logic
+│   └── db.ts              # Database schema (SQLite)
+scripts/
+├── test-firecrawl.ts          # Test Firecrawl API, save response
+├── extract-pubdate-from-html.ts  # Find CSS selectors from saved response
+└── extract-html-from-firecrawl.ts  # Extract HTML to file
 ```
 crawler/
 ├── data/
