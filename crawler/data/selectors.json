@@ -1,0 +1,37 @@
+{
+  "toss": {
+    "publishedDate": "#__next > div > div.p-container.p-container--default.css-2ndca > div > div.css-1dxrfx2.e1nrxxaj0 > article > header > section > div > div.css-154r2lc.esnk6d50",
+    "publishedDateFormat": "YYYY년 MM월 DD일",
+    "testUrl": "https://toss.tech/article/vulnerability-analysis-automation-1"
+  },
+  "kakao": {
+    "publishedDate": "",
+    "publishedDateFormat": "",
+    "testUrl": ""
+  },
+  "naver": {
+    "publishedDate": "",
+    "publishedDateFormat": "",
+    "testUrl": ""
+  },
+  "line": {
+    "publishedDate": "",
+    "publishedDateFormat": "",
+    "testUrl": ""
+  },
+  "daangn": {
+    "publishedDate": "",
+    "publishedDateFormat": "",
+    "testUrl": ""
+  },
+  "woowahan": {
+    "publishedDate": "",
+    "publishedDateFormat": "",
+    "testUrl": ""
+  },
+  "coupang": {
+    "publishedDate": "",
+    "publishedDateFormat": "",
+    "testUrl": ""
+  }
+}
