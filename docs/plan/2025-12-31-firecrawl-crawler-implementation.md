@@ -213,27 +213,20 @@ After all selectors are working, process JSON files into SQLite.
 
 ## Implementation Steps
 
-### Phase 1: CSS Selector Discovery ✅ Complete
+### Phase 1: CSS Selector Discovery (Current) ✅ Complete
 
 **Goal:** Find CSS selectors for all 7 companies
 
-**Process:**
-1. Pick one URL from each company's txt file
-2. Run: `pnpm exec tsx scripts/test-firecrawl.ts [url]`
-3. Analyze HTML: `pnpm exec tsx scripts/extract-pubdate-from-html.ts crawler/data/firecrawl/[id].json`
-4. Find CSS selector (browser DevTools)
-5. Update `crawler/data/selectors.json`
-
 **Status:**
-- [x] Toss - Done ✅
-- [x] Coupang - Done ✅
-- [x] Daangn - Done ✅
-- [x] Akao - Done ✅
-- [x] Naver - Done ✅
-- [x] Line - Done ✅
-- [x] Woowahan - Done ✅
+- [x] Toss - Done
+- [x] Coupang - Done
+- [x] Daangn - Done
+- [x] Akao - Done
+- [x] Naver - Done
+- [x] Line - Done
+- [x] Woowahan - Done
 
-### Phase 2: Build Scraper (Save to JSON)
+### Phase 2: Build Production Scraper (Save to JSON)
 
 **File to create:** `crawler/src/scraper.ts`
 
@@ -242,15 +235,18 @@ export async function scrapeCompany(company: string): Promise<void>
 export async function scrapeAll(): Promise<void>
 ```
 
-**CLI:** `pnpm --filter @postby/crawler start [company]`
+**CLI:**
+```bash
+pnpm --filter @postby/crawler start [company]
+```
 
 **Output:** JSON files in `crawler/data/firecrawl/{company}/{id}.json`
 
 **Error handling:** Simple retry (max 2 attempts). Firecrawl handles rate limiting.
 
-### Phase 3: Process JSON → Database (Future)
+### Phase 3: Process JSON → Database
 
-After Phase 2 is complete and selectors are stable:
+After Phase 2 is complete:
 - Parse JSON files
 - Extract publish dates using CSS selectors
 - Insert into SQLite database
@@ -258,7 +254,7 @@ After Phase 2 is complete and selectors are stable:
 ### Phase 4: Validation
 
 - [ ] All 7 companies have valid selectors
-- [ ] All 115 URLs scraped to JSON files
+- [ ] All 115 URLs scraped
 - [ ] Failed URLs logged with reasons
 
 ## Budget & Cost
