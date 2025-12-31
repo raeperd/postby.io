@@ -19,6 +19,16 @@ We need to crawl 115 tech blog posts from 7 companies and extract:
 
 Use Firecrawl API with `rawHtml` format to extract publish dates via CSS selectors. Store scraped content in SQLite database. CSS selectors are hardcoded in TypeScript for type safety.
 
+**Phase 1: CSS Selector Discovery** ✅ Complete
+
+All 6 company selectors configured (coupang, daangn, akao, naver, line, woowahan) with correct format patterns:
+- Toss: `YYYY년 MM월 DD일` (Korean)
+- Coupang/Daangn: `<span>MMM DD, YYYY</span>` (Medium)
+- Akao: `<span>YYYY.MM.DD</span>` (Korean)
+- Naver: `<time datetime='...'>` (ISO)
+- Line: `<dd>...</dd>` (ISO)
+- Woowahan: `<span>YYYY. MM. DD.</span>` (Korean)
+
 ## Architecture
 
 ### Data Flow
@@ -203,7 +213,7 @@ After all selectors are working, process JSON files into SQLite.
 
 ## Implementation Steps
 
-### Phase 1: CSS Selector Discovery (Current)
+### Phase 1: CSS Selector Discovery ✅ Complete
 
 **Goal:** Find CSS selectors for all 7 companies
 
@@ -215,13 +225,13 @@ After all selectors are working, process JSON files into SQLite.
 5. Update `crawler/data/selectors.json`
 
 **Status:**
-- [x] Toss - Done
-- [ ] Kakao
-- [ ] Naver
-- [ ] Line
-- [ ] Daangn (Medium)
-- [ ] Woowahan
-- [ ] Coupang (Medium)
+- [x] Toss - Done ✅
+- [x] Coupang - Done ✅
+- [x] Daangn - Done ✅
+- [x] Akao - Done ✅
+- [x] Naver - Done ✅
+- [x] Line - Done ✅
+- [x] Woowahan - Done ✅
 
 ### Phase 2: Build Scraper (Save to JSON)
 
