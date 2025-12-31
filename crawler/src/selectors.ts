@@ -1,14 +1,10 @@
 import * as cheerio from 'cheerio';
-import fs from 'fs';
-import path from 'path';
 
 export interface CompanySelector {
   publishedDate: string;
   publishedDateFormat: string;
   testUrl: string;
 }
-
-type SelectorsConfig = Record<string, CompanySelector>;
 
 const SELECTORS: Record<string, CompanySelector> = {
   toss: {
@@ -17,12 +13,12 @@ const SELECTORS: Record<string, CompanySelector> = {
     testUrl: "https://toss.tech/article/vulnerability-analysis-automation-1",
   },
   coupang: {
-    publishedDate: "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > section > div > div:nth-child(2) > div > div > div.ac.r.kw > span > div > span:nth-child(3)",
+    publishedDate: "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > section > div > div:nth-child(2) > div > div > div > div.ac.r.kw > span > div > span:nth-child(3)",
     publishedDateFormat: "<span>MMM DD, YYYY</span>",
     testUrl: "https://medium.com/coupang-engineering",
   },
   daangn: {
-    publishedDate: "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > div > section > div > div:nth-child(2) > div > div > div > div.ac.ka.kb.kc.ke.kf.kh.ki.kj.kk > div.ac.r.kx > span > div > span:nth-child(3)",
+    publishedDate: "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > div > section > div > div:nth-child(2) > div > div > div > div.ac.ka.kb.kc.ke.kf.kg.kh.ki.kj > div.ac.r.kx > span > div > span:nth-child(3)",
     publishedDateFormat: "<span>MMM DD, YYYY</span>",
     testUrl: "https://medium.com/daangn",
   },
@@ -107,20 +103,9 @@ export function extractPublishDate(html: string, company: string): Date | null {
     }
   }
 
-  if (selector.publishedDateFormat.includes('time')) {
-    const innerHtml = element.html();
-    const timeMatch = innerHtml.match(/<time[^>]*datetime="([^"]+)"/);
-    if (timeMatch) {
-      const date = new Date(timeMatch[1]);
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-  }
-
   if (selector.publishedDateFormat.includes('span')) {
-    const spanText = element.html();
-    const spanMatch = spanText.match(/(\d{4})\.\s*(\d{2})\.\s*(\d{2})/);
+    const spanText = element.html() || element.text() || '';
+    const spanMatch = spanText.match(/(\d{4})\.(\d{2})\.\s*(\d{2})/);
     if (spanMatch) {
       const year = parseInt(spanMatch[1]);
       const month = parseInt(spanMatch[2]) - 1;
