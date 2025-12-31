@@ -4,34 +4,34 @@
     "publishedDateFormat": "YYYY년 MM월 DD일",
     "testUrl": "https://toss.tech/article/vulnerability-analysis-automation-1"
   },
-  "kakao": {
-    "publishedDate": "",
-    "publishedDateFormat": "",
-    "testUrl": ""
+  "coupang": {
+    "publishedDate": "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > section > div > div:nth-child(2) > div > div > div > div.ac.r.kw > span > div > span:nth-child(3)",
+    "publishedDateFormat": "<span>MMM DD, YYYY</span>",
+    "testUrl": "https://medium.com/coupang-engineering"
+  },
+  "daangn": {
+    "publishedDate": "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > div > section > div > div:nth-child(2) > div > div > div > div.ac.ka.kb.kc.ke.kf.kh.ki.kj > div.ac.r.kw > span > div > span:nth-child(3)",
+    "publishedDateFormat": "<span>MMM DD, YYYY</span>",
+    "testUrl": "https://medium.com/daangn"
+  },
+  "akao": {
+    "publishedDate": "#__nuxt > div.container-doc > main > article > div.wrap_tit > div > span:nth-child(2)",
+    "publishedDateFormat": "<span>YYYY.MM.DD</span>",
+    "testUrl": "https://tech.kakao.com"
   },
   "naver": {
-    "publishedDate": "",
-    "publishedDateFormat": "",
-    "testUrl": ""
+    "publishedDate": "#container > article > div > header > div.detail > time",
+    "publishedDateFormat": "<time datetime='YYYY-MM-DD'>YYYY-MM-DD</time>",
+    "testUrl": "https://d2.naver.com"
   },
   "line": {
     "publishedDate": "",
     "publishedDateFormat": "",
     "testUrl": ""
   },
-  "daangn": {
-    "publishedDate": "",
-    "publishedDateFormat": "",
-    "testUrl": ""
-  },
   "woowahan": {
-    "publishedDate": "",
-    "publishedDateFormat": "",
-    "testUrl": ""
-  },
-  "coupang": {
-    "publishedDate": "",
-    "publishedDateFormat": "",
-    "testUrl": ""
+    "publishedDate": "body > div.content.vuejs > div.content-wrap.content-single > div.post-content > div.post-header > div > div.post-header-author > span:nth-child(1)",
+    "publishedDateFormat": "<span>YYYY. MM. DD.</span>",
+    "testUrl": "https://techblog.woowahan.com"
   }
 }

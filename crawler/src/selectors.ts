@@ -43,79 +43,61 @@ export function extractPublishDate(html: string, selector: string): Date | null 
 
   const text = element.text().trim();
 
-  // Try parsing as ISO date first
-  const isoDate = new Date(text);
-  if (!isNaN(isoDate.getTime())) {
-    return isoDate;
-  }
-
-  // Try common Korean date formats
-  const koreanPatterns = [
-    /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/, // 2025년 12월 24일
-    /(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/, // 2025. 12. 24
-    /(\d{4})-(\d{2})-(\d{2})/, // 2025-12-24
-  ];
-
-  for (const pattern of koreanPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const year = parseInt(match[1]);
-      const month = parseInt(match[2]) - 1; // JS months are 0-indexed
-      const day = parseInt(match[3]);
-      const date = new Date(year, month, day);
-
+  // Format 1: <span data-testid="storyPublishDate">Oct 15, 2024</span>
+  const dataTestid = element.attr('data-testid');
+  if (dataTestid === 'storyPublishDate') {
+    const parts = text.split(', ');
+    if (parts.length === 2) {
+      const monthStr = parts[0].trim();
+      const year = parseInt(parts[1].trim());
+      const monthMap: Record<string, number> = {
+        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+      };
+      const month = monthMap[monthStr];
+      const date = new Date(year, month, 1);
       if (!isNaN(date.getTime())) {
         return date;
       }
     }
   }
 
-  // Try common English date formats (for Medium, etc.)
-  const englishPatterns = [
-    /([A-Z][a-z]{2})\s+(\d{1,2}),?\s+(\d{4})/, // Dec 24, 2025 or Dec 24 2025
-    /(\d{1,2})\s+([A-Z][a-z]{2})\s+(\d{4})/, // 24 Dec 2025
-  ];
+  // Format 2: <time datetime="2025-12-23">2025-12-23</time>
+  const datetime = element.attr('datetime');
+  if (datetime) {
+    const date = new Date(datetime);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
 
-  const monthNames: Record<string, number> = {
-    Jan: 0,
-    Feb: 1,
-    Mar: 2,
-    Apr: 3,
-    May: 4,
-    Jun: 5,
-    Jul: 6,
-    Aug: 7,
-    Sep: 8,
-    Oct: 9,
-    Nov: 10,
-    Dec: 11,
-  };
+  // Format 3: <dd>2025.12.18</dd>
+  const ddText = text.replace(/<dd>|<\/dd>/g, '').trim();
+  const date = new Date(ddText);
+  if (!isNaN(date.getTime())) {
+    return date;
+  }
 
-  for (const pattern of englishPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      let year: number, month: number, day: number;
+  // Format 4: <span>2025. 12. 26.</span>
+  const spanMatch = text.match(/(\d{4})\s+년?\s*(\d{1,2})\.?\s*월?/);
+  if (spanMatch) {
+    const year = parseInt(spanMatch[1]);
+    const month = parseInt(spanMatch[2]) - 1;
+    const day = parseInt(spanMatch[3]);
+    const date = new Date(year, month, day);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
 
-      if (pattern.source.startsWith('([A-Z]')) {
-        // Format: Dec 24, 2025
-        const monthStr = match[1];
-        month = monthNames[monthStr];
-        day = parseInt(match[2]);
-        year = parseInt(match[3]);
-      } else {
-        // Format: 24 Dec 2025
-        day = parseInt(match[1]);
-        const monthStr = match[2];
-        month = monthNames[monthStr];
-        year = parseInt(match[3]);
-      }
-
-      if (month !== undefined) {
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) {
-          return date;
-        }
-      }
+  // Format 5: <span data-v-c99b4e88="">2025.12.22</span>
+  const dataVMatch = text.match(/(\d{4})\.(\d{2})\.(\d{2})/);
+  if (dataVMatch) {
+    const year = parseInt(dataVMatch[1]);
+    const month = parseInt(dataVMatch[2]) - 1;
+    const day = parseInt(dataVMatch[3]);
+    const date = new Date(year, month, day);
+    if (!isNaN(date.getTime())) {
+      return date;
     }
   }
 
