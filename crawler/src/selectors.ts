@@ -1,10 +1,14 @@
 import * as cheerio from 'cheerio';
+import fs from 'fs';
+import path from 'path';
 
 export interface CompanySelector {
   publishedDate: string;
   publishedDateFormat: string;
   testUrl: string;
 }
+
+type SelectorsConfig = Record<string, CompanySelector>;
 
 const SELECTORS: Record<string, CompanySelector> = {
   toss: {
@@ -13,12 +17,12 @@ const SELECTORS: Record<string, CompanySelector> = {
     testUrl: "https://toss.tech/article/vulnerability-analysis-automation-1",
   },
   coupang: {
-    publishedDate: "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > section > div > div:nth-child(2) > div > div > div > div.ac.r.kw > span > div > span:nth-child(3)",
+    publishedDate: "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > section > div > div:nth-child(2) > div > div > div.ac.r.kw > span > div > span:nth-child(3)",
     publishedDateFormat: "<span>MMM DD, YYYY</span>",
     testUrl: "https://medium.com/coupang-engineering",
   },
   daangn: {
-    publishedDate: "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > div > section > div > div:nth-child(2) > div > div > div.ac.ka.kb.kc.ke.kf.kg.kh.ki.kj > div.ac.r.kx > span > div > span:nth-child(3)",
+    publishedDate: "#root > div > div.m.c > div.ac > div.cd.bi.ce.cf.cg.ch > div > div.ic.id.ie.if.m > article > div > div > section > div > div:nth-child(2) > div > div > div > div.ac.ka.kb.kc.ke.kf.kh.ki.kj.kk > div.ac.r.kx > span > div > span:nth-child(3)",
     publishedDateFormat: "<span>MMM DD, YYYY</span>",
     testUrl: "https://medium.com/daangn",
   },
@@ -71,7 +75,18 @@ export function extractPublishDate(html: string, company: string): Date | null {
         const monthStr = parts[0].trim();
         const year = parseInt(parts[1].trim());
         const monthMap: Record<string, number> = {
-          Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+          Jan: 0,
+          Feb: 1,
+          Mar: 2,
+          Apr: 3,
+          May: 4,
+          Jun: 5,
+          Jul: 6,
+          Aug: 7,
+          Sep: 8,
+          Oct: 9,
+          Nov: 10,
+          Dec: 11,
         };
         const month = monthMap[monthStr];
         const date = new Date(year, month, 1);
