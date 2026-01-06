@@ -6,6 +6,10 @@ import { createHash } from 'crypto';
 
 dotenv.config({ path: path.join(process.cwd(), 'crawler', '.env') });
 
+if (!process.env.FIRECRAWL_API_KEY) {
+  throw new Error('FIRECRAWL_API_KEY not found in environment. Check crawler/.env file.');
+}
+
 const firecrawl = new Firecrawl({
   apiKey: process.env.FIRECRAWL_API_KEY,
 });
