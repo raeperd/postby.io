@@ -10,6 +10,10 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
+if (!process.env.FIRECRAWL_API_KEY) {
+  throw new Error('FIRECRAWL_API_KEY not found in environment. Check crawler/.env file.');
+}
+
 const firecrawl = new Firecrawl({
   apiKey: process.env.FIRECRAWL_API_KEY,
 });
@@ -28,12 +32,14 @@ function loadUrls(company: string): string[] {
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(timeoutError)), timeoutMs)
-    ),
-  ]);
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutError)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timeoutId);
+  });
 }
 
 async function scrapeUrl(

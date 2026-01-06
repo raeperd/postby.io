@@ -6,6 +6,10 @@ import { createHash } from 'crypto';
 
 dotenv.config({ path: path.join(process.cwd(), 'crawler', '.env') });
 
+if (!process.env.FIRECRAWL_API_KEY) {
+  throw new Error('FIRECRAWL_API_KEY not found in environment. Check crawler/.env file.');
+}
+
 const firecrawl = new Firecrawl({
   apiKey: process.env.FIRECRAWL_API_KEY,
 });
@@ -26,12 +30,14 @@ function getCompanyFromUrl(url: string): string {
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(timeoutError)), timeoutMs)
-    ),
-  ]);
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutError)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timeoutId);
+  });
 }
 
 async function retryUrl(url: string, forceOverwrite: boolean = false): Promise<void> {
@@ -87,7 +93,7 @@ async function retryUrl(url: string, forceOverwrite: boolean = false): Promise<v
     console.log(`  HTML: ${result.rawHtml?.length ?? 0} chars`);
   } catch (error) {
     console.log(`✗ FAILED: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
+    throw error;
   }
 }
 
