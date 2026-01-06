@@ -78,6 +78,12 @@ async function main(): Promise<void> {
       console.error('Usage: tsx src/index.ts scrape <company>');
       process.exit(1);
     }
+    const validCompanies = ['toss', 'coupang', 'daangn', 'kakao', 'naver', 'line', 'woowahan'];
+    if (!validCompanies.includes(company)) {
+      console.error(`Unknown company: ${company}`);
+      console.error('Available companies: ' + validCompanies.join(', '));
+      process.exit(1);
+    }
     await scrapeCompany(company);
     return;
   }
