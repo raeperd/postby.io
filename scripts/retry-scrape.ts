@@ -89,7 +89,7 @@ async function retryUrl(url: string, forceOverwrite: boolean = false): Promise<v
     console.log(`  HTML: ${result.rawHtml?.length ?? 0} chars`);
   } catch (error) {
     console.log(`✗ FAILED: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
+    throw error;
   }
 }
 
