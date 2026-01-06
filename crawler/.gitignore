@@ -1,0 +1,8 @@
+# Environment variables
+.env
+
+# Cached HTML files
+data/html/
+
+# Firecrawl API responses
+data/firecrawl/
