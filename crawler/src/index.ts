@@ -1,6 +1,7 @@
 import { fetchPage } from './fetcher';
 import { parsePostList } from './parser';
 import { rules, type ParsingRule } from './rules';
+import { scrapeCompany, scrapeAll } from './scraper';
 
 async function crawlPostList(rule: ParsingRule): Promise<string[]> {
   const discoveredUrls: string[] = [];
@@ -53,21 +54,52 @@ async function crawl(company: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const company = process.argv[2];
+  const command = process.argv[2];
+  const company = process.argv[3];
 
-  if (!company) {
-    console.error('Usage: tsx src/index.ts <company>');
-    console.error('\nAvailable companies: ' + Object.keys(rules).join(', '));
+  if (!command) {
+    console.error('Usage: tsx src/index.ts <command> [company]');
+    console.error('\nCommands:');
+    console.error('  discover <company>  - Discover post URLs from RSS/list pages');
+    console.error('  scrape <company>    - Scrape articles using Firecrawl API');
+    console.error('  scrape-all          - Scrape all companies');
+    console.error('\nAvailable companies: toss, coupang, daangn, kakao, naver, line, woowahan');
     process.exit(1);
   }
 
-  if (!rules[company]) {
-    console.error(`Unknown company: ${company}`);
-    console.error('Available companies: ' + Object.keys(rules).join(', '));
-    process.exit(1);
+  if (command === 'scrape-all') {
+    await scrapeAll();
+    return;
   }
 
-  await crawl(company);
+  if (command === 'scrape') {
+    if (!company) {
+      console.error('Error: Company name required for scrape command');
+      console.error('Usage: tsx src/index.ts scrape <company>');
+      process.exit(1);
+    }
+    await scrapeCompany(company);
+    return;
+  }
+
+  if (command === 'discover') {
+    if (!company) {
+      console.error('Error: Company name required for discover command');
+      console.error('Usage: tsx src/index.ts discover <company>');
+      process.exit(1);
+    }
+    if (!rules[company]) {
+      console.error(`Unknown company: ${company}`);
+      console.error('Available companies: ' + Object.keys(rules).join(', '));
+      process.exit(1);
+    }
+    await crawl(company);
+    return;
+  }
+
+  console.error(`Unknown command: ${command}`);
+  console.error('Available commands: discover, scrape, scrape-all');
+  process.exit(1);
 }
 
 main().catch(error => {
