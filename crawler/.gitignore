@@ -7,6 +7,5 @@ data/html/
 # Firecrawl API responses
 data/firecrawl/
 
-# SQLite database (regenerable from data/firecrawl/)
-posts.db
-posts.db.backup
+# SQLite database backups
+*.backup
