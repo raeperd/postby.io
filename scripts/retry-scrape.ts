@@ -2,7 +2,7 @@ import Firecrawl from '@mendable/firecrawl-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { createHash } from 'crypto';
+import { urlToId } from '../crawler/src/cache.js';
 
 dotenv.config({ path: path.join(process.cwd(), 'crawler', '.env') });
 
@@ -13,10 +13,6 @@ if (!process.env.FIRECRAWL_API_KEY) {
 const firecrawl = new Firecrawl({
   apiKey: process.env.FIRECRAWL_API_KEY,
 });
-
-function generateId(url: string): string {
-  return createHash('sha256').update(url).digest('hex').slice(0, 16);
-}
 
 function getCompanyFromUrl(url: string): string {
   if (url.includes('toss.tech')) return 'toss';
@@ -42,7 +38,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: st
 
 async function retryUrl(url: string, forceOverwrite: boolean = false): Promise<void> {
   const company = getCompanyFromUrl(url);
-  const id = generateId(url);
+  const id = urlToId(url);
   const outputDir = path.join(process.cwd(), 'crawler', 'data', 'firecrawl', company);
   const outputPath = path.join(outputDir, `${id}.json`);
 
