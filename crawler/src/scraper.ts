@@ -4,6 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
+import { db, posts, type InsertPost, type FirecrawlResponse } from './db';
+import { eq } from 'drizzle-orm';
+import { extractPublishDate } from './selectors';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,8 +57,10 @@ async function scrapeUrl(
 
   console.log(`[${index + 1}/${total}] ${url}`);
 
-  if (fs.existsSync(outputPath)) {
-    console.log(`  ⊘ SKIP (already exists)`);
+  // Check if already exists in database
+  const existing = await db.select().from(posts).where(eq(posts.url, url));
+  if (existing.length > 0) {
+    console.log(`  ⊘ SKIP (already in DB)`);
     return { status: 'skipped', url };
   }
 
@@ -72,22 +77,36 @@ async function scrapeUrl(
       `Timeout after 180s for ${url}`
     );
 
+    const firecrawlData: FirecrawlResponse = {
+      url,
+      company,
+      scrapedAt: new Date().toISOString(),
+      ...result,
+    };
+
+    // Write to file (backup)
     fs.writeFileSync(
       outputPath,
-      JSON.stringify(
-        {
-          url,
-          company,
-          scrapedAt: new Date().toISOString(),
-          ...result,
-        },
-        null,
-        2
-      ),
+      JSON.stringify(firecrawlData, null, 2),
       'utf-8'
     );
 
-    console.log(`  ✓ SAVED (${id}.json)`);
+    // Write to database
+    const publishedAt = extractPublishDate(firecrawlData.rawHtml, company) || new Date();
+    const post: InsertPost = {
+      id,
+      url,
+      company,
+      title: firecrawlData.metadata.title || 'Untitled',
+      content: firecrawlData.markdown,
+      tags: [],
+      publishedAt,
+      firecrawlData,
+    };
+
+    await db.insert(posts).values(post);
+
+    console.log(`  ✓ SAVED (file + DB)`);
     return { status: 'scraped', url };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
