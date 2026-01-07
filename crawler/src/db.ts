@@ -5,6 +5,21 @@ import { createClient } from '@libsql/client';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
+export interface FirecrawlResponse {
+  url: string;
+  company: string;
+  scrapedAt: string;
+  markdown: string;
+  summary: string;
+  links: string[];
+  rawHtml: string;
+  metadata: {
+    title: string;
+    language?: string;
+    statusCode?: number;
+  };
+}
+
 export const posts = sqliteTable(
   'posts',
   {
@@ -28,6 +43,9 @@ export const posts = sqliteTable(
     status: text('status', { enum: ['pending', 'success', 'failed'] })
       .notNull()
       .default('pending'),
+    firecrawlData: text('firecrawl_data', { mode: 'json' })
+      .$type<FirecrawlResponse>()
+      .notNull(),
   },
   table => [
     index('url_idx').on(table.url),
