@@ -23,11 +23,11 @@
     "drizzle-kit": "^0.31.8",
     "drizzle-zod": "^0.8.3",
     "eslint": "^9.30.1",
-    "globals": "^16.3.0",
+    "globals": "^17.0.0",
     "prettier": "^3.6.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.50.1"
+    "typescript-eslint": "^8.52.0"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
