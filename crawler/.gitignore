@@ -6,3 +6,6 @@ data/html/
 
 # Firecrawl API responses
 data/firecrawl/
+
+# SQLite database backups
+*.backup
