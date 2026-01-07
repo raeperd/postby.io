@@ -1,18 +1,14 @@
 import { db, type InsertPost, type FirecrawlResponse } from './db';
 import { posts } from './db';
 import { eq } from 'drizzle-orm';
-import { createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { extractPublishDate } from './selectors';
+import { urlToId } from './cache';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-function generateId(url: string): string {
-  return createHash('sha256').update(url).digest('hex').slice(0, 16);
-}
 
 function loadFirecrawlFiles(company: string): string[] {
   const firecrawlDir = path.join(__dirname, '..', 'data', 'firecrawl', company);
@@ -37,7 +33,7 @@ async function migrateCompany(company: string): Promise<{ imported: number; skip
       const content = fs.readFileSync(filePath, 'utf-8');
       const firecrawlData: FirecrawlResponse = JSON.parse(content);
 
-      const id = generateId(firecrawlData.url);
+      const id = urlToId(firecrawlData.url);
 
       // Check if already exists
       const existing = await db.select().from(posts).where(eq(posts.url, firecrawlData.url));

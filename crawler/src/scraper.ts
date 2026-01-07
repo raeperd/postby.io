@@ -2,11 +2,11 @@ import Firecrawl from '@mendable/firecrawl-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
 import { db, posts, type InsertPost, type FirecrawlResponse } from './db';
 import { eq } from 'drizzle-orm';
 import { extractPublishDate } from './selectors';
+import { urlToId } from './cache';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,10 +20,6 @@ if (!process.env.FIRECRAWL_API_KEY) {
 const firecrawl = new Firecrawl({
   apiKey: process.env.FIRECRAWL_API_KEY,
 });
-
-function generateId(url: string): string {
-  return createHash('sha256').update(url).digest('hex').slice(0, 16);
-}
 
 function loadUrls(company: string): string[] {
   const urlsPath = path.join(__dirname, '..', 'data', 'urls', `${company}.txt`);
@@ -52,7 +48,7 @@ async function scrapeUrl(
   index: number,
   total: number
 ): Promise<{ status: 'scraped' | 'skipped' | 'failed'; url: string; error?: string }> {
-  const id = generateId(url);
+  const id = urlToId(url);
   const outputPath = path.join(outputDir, `${id}.json`);
 
   console.log(`[${index + 1}/${total}] ${url}`);
