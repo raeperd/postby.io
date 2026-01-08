@@ -23,7 +23,7 @@ export interface FirecrawlResponse {
 export const posts = sqliteTable(
   'posts',
   {
-    id: text('id').primaryKey(), // Generated from URL using Base64 encoding
+    id: text('id').primaryKey(), // Generated from URL using SHA-1 hash (40 hex chars)
     url: text('url').notNull().unique(),
     company: text('company').notNull(),
     title: text('title').notNull(),
