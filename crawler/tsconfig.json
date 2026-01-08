@@ -4,13 +4,15 @@
     "module": "ES2022",
     "moduleResolution": "bundler",
     "outDir": "./dist",
-    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@crawler/*": ["./src/*"]
+    }
   },
-  "include": ["src/**/*", "*.config.ts"],
+  "include": ["src/**/*", "*.config.ts", "../src/lib/db.ts"],
   "exclude": ["node_modules", "dist"]
 }

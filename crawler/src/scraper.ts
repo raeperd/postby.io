@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { db, posts, type InsertPost, type FirecrawlResponse } from './db';
 import { eq } from 'drizzle-orm';
 import { extractPublishDate } from './selectors';
-import { urlToId } from './cache';
+import { urlToId } from '../../src/lib/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

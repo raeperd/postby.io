@@ -79,7 +79,7 @@ The crawler operates in two phases:
    - Reads URLs from `data/urls/<company>.txt`
    - Uses Firecrawl API to extract article content, metadata, and publish dates
    - Stores raw scraped data as JSON files in `crawler/data/firecrawl/<company>/`
-   - Generates URL-based IDs using SHA-256 hash (first 16 chars)
+   - Generates URL-based IDs using SHA-1 hash (40 hex characters)
    - Skips already-scraped URLs automatically
 
 ### Database Schema
@@ -87,7 +87,7 @@ The crawler operates in two phases:
 Located in `crawler/src/db.ts`. Uses Drizzle ORM with LibSQL (SQLite).
 
 **Posts Table**:
-- `id`: Text primary key (SHA-256 hash of URL)
+- `id`: Text primary key (SHA-1 hash of URL, 40 hex characters)
 - `url`: Unique URL of the blog post
 - `company`: Company name (toss, coupang, daangn, kakao, naver, line, woowahan)
 - `title`, `content`, `tags`: Post metadata
@@ -143,7 +143,7 @@ crawler/data/
 │   └── ...
 ├── html/              # Cached HTML pages (organized by hostname)
 │   └── <hostname>/
-│       └── <base64-url-id>.html
+│       └── <sha1-url-id>.html
 └── rss/               # RSS feed data
 ```
 
@@ -177,9 +177,9 @@ FIRECRAWL_API_KEY=<your-api-key>
 ### Cache System
 
 The crawler includes a file-based caching system (`cache.ts`):
-- URLs are encoded to Base64 URL-safe IDs (without scheme)
+- URLs are hashed to SHA-1 IDs (without scheme, 40 hex characters)
 - Cache files stored in `data/html/<hostname>/<id>.html`
-- Helper functions: `urlToId()`, `idToUrl()`, `getCachePath()`, `readCache()`, `writeCache()`
+- Helper functions: `urlToId()`, `getCachePath()`, `readCache()`, `writeCache()`
 
 ### Type Safety
 

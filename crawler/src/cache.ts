@@ -1,37 +1,18 @@
-import { Buffer } from 'node:buffer';
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { urlToId } from '../../src/lib/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const CACHE_ROOT = join(__dirname, '../data/html');
 
-/**
- * Encode URL to Base64 URL-safe ID
- * Removes https:// prefix before encoding
- */
-export function urlToId(url: string): string {
-  const withoutScheme = url.replace(/^https?:\/\//, '');
-  return Buffer.from(withoutScheme).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); // Remove padding
-}
-
-/**
- * Decode Base64 ID back to URL
- * Prepends https:// after decoding
- */
-export function idToUrl(id: string): string {
-  // Restore base64 padding and characters
-  const base64 = id.replace(/-/g, '+').replace(/_/g, '/');
-  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
-  const withoutScheme = Buffer.from(base64 + padding, 'base64').toString('utf-8');
-  return `https://${withoutScheme}`;
-}
+export { urlToId };
 
 /**
  * Get cache file path for a URL
  * Example: https://tech.kakao.com/posts/123
- *   -> data/html/tech.kakao.com/dGVjaC5rYWthby5jb20vcG9zdHMvMTIz.html
+ *   -> data/html/tech.kakao.com/9c1db1dd793047d9cbe4bccb1f4dc6a2af59f020.html
  */
 export function getCachePath(url: string): string {
   const hostname = new URL(url).hostname;
