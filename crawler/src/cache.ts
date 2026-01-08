@@ -1,21 +1,13 @@
-import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { urlToId } from '../../src/lib/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const CACHE_ROOT = join(__dirname, '../data/html');
 
-/**
- * Generate SHA-1 hash ID from URL
- * Removes https:// prefix before hashing
- * Returns 40-character hex string
- */
-export function urlToId(url: string): string {
-  const withoutScheme = url.replace(/^https?:\/\//, '');
-  return createHash('sha1').update(withoutScheme).digest('hex');
-}
+export { urlToId };
 
 /**
  * Get cache file path for a URL

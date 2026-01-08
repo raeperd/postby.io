@@ -3,7 +3,7 @@
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import { posts } from '../crawler/src/db';
-import { urlToId } from '../crawler/src/cache';
+import { urlToId } from '../src/lib/db.js';
 import { sql } from 'drizzle-orm';
 import path from 'node:path';
 

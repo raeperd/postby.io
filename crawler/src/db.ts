@@ -63,14 +63,15 @@ export const db = drizzle(client, { schema: { posts } });
 
 export const selectPostSchema = createSelectSchema(posts);
 
+// Schema for inserting posts - ID is auto-generated from URL
 export const insertPostSchema = createInsertSchema(posts, {
-  id: z.string().min(1, 'ID is required'),
   url: z.url({ message: 'Must be a valid URL' }),
   title: z.string().min(1, 'Title is required').max(500, 'Title too long'),
   content: z.string().min(1, 'Content is required'),
   tags: z.array(z.string()).default([]),
   company: z.string().min(1, 'Company is required'),
-});
+}).omit({ id: true });
 
 export type Post = typeof posts.$inferSelect;
 export type InsertPost = typeof posts.$inferInsert;
+export type InsertPostInput = z.infer<typeof insertPostSchema>;
