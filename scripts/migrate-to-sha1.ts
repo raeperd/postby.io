@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
 
-import { createHash } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import { posts } from '../crawler/src/db';
+import { urlToId } from '../crawler/src/cache';
 import { sql } from 'drizzle-orm';
 import path from 'node:path';
 
@@ -13,12 +13,6 @@ const client = createClient({ url: `file:${dbPath}` });
 const db = drizzle(client, { schema: { posts } });
 
 const DRY_RUN = process.argv.includes('--dry-run');
-
-// SHA-1 implementation (same as in cache.ts)
-function urlToSha1(url: string): string {
-  const withoutScheme = url.replace(/^https?:\/\//, '');
-  return createHash('sha1').update(withoutScheme).digest('hex');
-}
 
 async function migrateToSHA1() {
   console.log('Starting SHA-1 ID migration...');
@@ -36,7 +30,7 @@ async function migrateToSHA1() {
 
   for (const post of allPosts) {
     try {
-      const newId = urlToSha1(post.url);
+      const newId = urlToId(post.url);
       const oldId = post.id;
 
       // Check if already SHA-1 format (40 hex chars)

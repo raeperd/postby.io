@@ -20,7 +20,7 @@ export function urlToId(url: string): string {
 /**
  * Get cache file path for a URL
  * Example: https://tech.kakao.com/posts/123
- *   -> data/html/tech.kakao.com/dGVjaC5rYWthby5jb20vcG9zdHMvMTIz.html
+ *   -> data/html/tech.kakao.com/9c1db1dd793047d9cbe4bccb1f4dc6a2af59f020.html
  */
 export function getCachePath(url: string): string {
   const hostname = new URL(url).hostname;

@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
 
-import { createHash } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import { posts } from '../crawler/src/db';
+import { urlToId } from '../crawler/src/cache';
 import { sql } from 'drizzle-orm';
 import path from 'node:path';
 
@@ -11,11 +11,6 @@ import path from 'node:path';
 const dbPath = path.join(process.cwd(), 'crawler/posts.db');
 const client = createClient({ url: `file:${dbPath}` });
 const db = drizzle(client, { schema: { posts } });
-
-function urlToSha1(url: string): string {
-  const withoutScheme = url.replace(/^https?:\/\//, '');
-  return createHash('sha1').update(withoutScheme).digest('hex');
-}
 
 async function verifyMigration() {
   const allPosts = await db.all<{ id: string; url: string; company: string }>(
@@ -26,7 +21,7 @@ async function verifyMigration() {
   let invalid = 0;
 
   for (const post of allPosts) {
-    const expectedId = urlToSha1(post.url);
+    const expectedId = urlToId(post.url);
 
     // 1. Check ID matches SHA-1 of URL
     if (post.id !== expectedId) {
