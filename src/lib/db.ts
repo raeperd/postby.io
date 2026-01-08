@@ -1,11 +1,11 @@
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import { posts } from '@crawler/db';
-import type { Post, InsertPostInput } from '@crawler/db';
+import type { Post } from '@crawler/db';
 import { createHash } from 'node:crypto';
 
 export { posts };
-export type { Post, InsertPostInput };
+export type { Post };
 
 /**
  * Generate SHA-1 hash ID from URL
@@ -23,13 +23,3 @@ const client = createClient({
 });
 
 export const db = drizzle(client, { schema: { posts } });
-
-/**
- * Insert a post with auto-generated ID from URL
- * @param data Post data without ID (ID is generated from URL)
- * @returns Inserted post with generated ID
- */
-export async function insertPost(data: InsertPostInput) {
-  const id = urlToId(data.url);
-  return db.insert(posts).values({ ...data, id }).returning();
-}

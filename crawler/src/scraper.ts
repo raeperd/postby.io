@@ -3,10 +3,10 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { db, posts, type InsertPostInput, type FirecrawlResponse } from './db';
+import { db, posts, type InsertPost, type FirecrawlResponse } from './db';
 import { eq } from 'drizzle-orm';
 import { extractPublishDate } from './selectors';
-import { urlToId, insertPost } from '../../src/lib/db.js';
+import { urlToId } from '../../src/lib/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,7 +89,8 @@ async function scrapeUrl(
 
     // Write to database
     const publishedAt = extractPublishDate(firecrawlData.rawHtml, company) || new Date();
-    const postData: InsertPostInput = {
+    const post: InsertPost = {
+      id,
       url,
       company,
       title: firecrawlData.metadata.title || 'Untitled',
@@ -99,7 +100,7 @@ async function scrapeUrl(
       firecrawlData,
     };
 
-    await insertPost(postData);
+    await db.insert(posts).values(post);
 
     console.log(`  ✓ SAVED (file + DB)`);
     return { status: 'scraped', url };

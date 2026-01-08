@@ -1,11 +1,11 @@
-import { db, type InsertPostInput, type FirecrawlResponse } from './db';
+import { db, type InsertPost, type FirecrawlResponse } from './db';
 import { posts } from './db';
 import { eq } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { extractPublishDate } from './selectors';
-import { urlToId, insertPost } from '../../src/lib/db.js';
+import { urlToId } from '../../src/lib/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,7 +49,8 @@ async function migrateCompany(company: string): Promise<{ imported: number; skip
         console.log(`  ⚠ WARNING ${file}: Could not extract publish date, using current time`);
       }
 
-      const postData: InsertPostInput = {
+      const post: InsertPost = {
+        id,
         url: firecrawlData.url,
         company: firecrawlData.company,
         title: firecrawlData.metadata.title || 'Untitled',
@@ -59,7 +60,7 @@ async function migrateCompany(company: string): Promise<{ imported: number; skip
         firecrawlData,
       };
 
-      await insertPost(postData);
+      await db.insert(posts).values(post);
       console.log(`  ✓ IMPORTED ${file}`);
       imported++;
     } catch (error) {
