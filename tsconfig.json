@@ -1,10 +1,22 @@
 {
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
+    "baseUrl": ".",
     "paths": {
-      "@crawler/*": ["./crawler/src/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@crawler/*": [
+        "./crawler/src/*"
+      ]
     }
   },
-  "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist", "crawler"]
+  "include": [
+    ".astro/types.d.ts",
+    "**/*"
+  ],
+  "exclude": [
+    "dist",
+    "crawler"
+  ]
 }

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://starwind.dev/config-schema.json",
+  "tailwind": {
+    "css": "src/styles/starwind.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "componentDir": "src/components",
+  "components": [
+    {
+      "name": "card",
+      "version": "1.3.0"
+    },
+    {
+      "name": "badge",
+      "version": "1.3.0"
+    },
+    {
+      "name": "button",
+      "version": "2.2.0"
+    }
+  ]
+}
