@@ -24,13 +24,13 @@ const SELECTORS: Record<string, CompanySelector> = {
     testUrl: 'https://medium.com/daangn/당근의-genai-플랫폼-ee2ac8953046',
   },
   kakao: {
-    publishedDate: '#__nuxt > div.container-doc > main > article > div.wrap_tit > div > span:nth-child(2)',
+    publishedDate: '#__nuxt > div.container-doc > main > article > div.wrap_tit > div > span:nth-child(3)',
     publishedDateFormat: '<span>YYYY.MM.DD</span>',
     testUrl: 'https://tech.kakao.com/posts/795',
   },
   naver: {
-    publishedDate: '#container > article > div > header > div.detail > time',
-    publishedDateFormat: "<time datetime='YYYY-MM-DD'>YYYY-MM-DD</time>",
+    publishedDate: '#container > div > div > div.post_article > div > dl > dd:nth-child(2)',
+    publishedDateFormat: '<dd>YYYY.MM.DD</dd>',
     testUrl: 'https://d2.naver.com/helloworld/0931890',
   },
   line: {
@@ -50,14 +50,37 @@ export function getCompanySelector(company: string): CompanySelector | null {
   return SELECTORS[company] || null;
 }
 
-export function extractPublishDate(html: string, company: string): Date | null {
+export function extractPublishDate(html: string, company: string, url?: string): Date | null {
+  // Hardcoded dates for specific URLs with known issues
+  if (url === 'https://toss.tech/article/business-customer-data') {
+    // This article has no date in HTML due to Toss bug
+    return new Date(2025, 11, 9); // December 9, 2025
+  }
+
   const selector = getCompanySelector(company);
   if (!selector || !selector.publishedDate) {
     return null;
   }
 
   const $ = cheerio.load(html);
-  const element = $(selector.publishedDate);
+  let element = $(selector.publishedDate);
+
+  // Special case for kakao: try multiple selectors
+  if (company === 'kakao' && element.length === 0) {
+    // Try alternate nth-child
+    const baseSelector = '#__nuxt > div.container-doc > main > article > div.wrap_tit > div';
+    const altSelector = selector.publishedDate.includes('nth-child(3)')
+      ? baseSelector + ' > span:nth-child(2)'
+      : baseSelector + ' > span:nth-child(3)';
+    element = $(altSelector);
+
+    // If still not found, try data-v attribute pattern (for older posts without wrap_tit)
+    if (element.length === 0) {
+      element = $('span[data-v-c99b4e88]').filter(function() {
+        return /^\d{4}\.\d{2}\.\d{2}$/.test($(this).text().trim());
+      }).first();
+    }
+  }
 
   if (element.length === 0) {
     return null;

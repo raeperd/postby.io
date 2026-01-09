@@ -32,7 +32,7 @@ export const posts = sqliteTable(
       .$type<string[]>()
       .notNull()
       .default(sql`'[]'`),
-    publishedAt: integer('published_at', { mode: 'timestamp' }).notNull(),
+    publishedAt: integer('published_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),

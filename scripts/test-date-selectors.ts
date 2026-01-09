@@ -42,7 +42,7 @@ function testCompany(company: string): void {
     const content = fs.readFileSync(filePath, 'utf-8');
     const data: FirecrawlResponse = JSON.parse(content);
 
-    const date = extractPublishDate(data.rawHtml, company);
+    const date = extractPublishDate(data.rawHtml, company, data.url);
 
     if (date) {
       successCount++;
