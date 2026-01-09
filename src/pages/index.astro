@@ -62,18 +62,16 @@ const companyBadgeVariants: Record<string, 'primary' | 'success' | 'warning' | '
         {allPosts.map((post) => (
           <Card class="transition-all duration-200 hover:shadow-lg">
             <CardHeader>
-              <div class="flex items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
-                  <Badge
-                    variant={companyBadgeVariants[post.company] || 'default'}
-                    class="uppercase"
-                  >
-                    {post.company}
-                  </Badge>
-                  <time class="text-sm text-gray-500" datetime={post.publishedAt.toISOString()}>
-                    {formatDate(post.publishedAt)}
-                  </time>
-                </div>
+              <div class="flex items-center gap-3">
+                <Badge
+                  variant={companyBadgeVariants[post.company] || 'default'}
+                  class="uppercase"
+                >
+                  {post.company}
+                </Badge>
+                <time class="text-sm text-gray-500" datetime={post.publishedAt.toISOString()}>
+                  {formatDate(post.publishedAt)}
+                </time>
               </div>
             </CardHeader>
 
