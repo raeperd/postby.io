@@ -44,7 +44,7 @@ async function migrateCompany(company: string): Promise<{ imported: number; skip
       }
 
       // Extract publish date from rawHtml
-      const publishedAt = extractPublishDate(firecrawlData.rawHtml, company);
+      const publishedAt = extractPublishDate(firecrawlData.rawHtml, company, firecrawlData.url);
       if (!publishedAt) {
         console.log(`  ⚠ WARNING ${file}: Could not extract publish date, using current time`);
       }

@@ -88,7 +88,7 @@ async function scrapeUrl(
     );
 
     // Write to database
-    const publishedAt = extractPublishDate(firecrawlData.rawHtml, company) || new Date();
+    const publishedAt = extractPublishDate(firecrawlData.rawHtml, company, url) || new Date();
     const post: InsertPost = {
       id,
       url,
