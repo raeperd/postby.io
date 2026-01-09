@@ -102,13 +102,18 @@ function extractPublishDateFromHtml(html: string): Date | null {
   return null;
 }
 
-function extractPublishDateFromHtmlWithCompany(html: string, company: string): Date | null {
+function extractPublishDateFromHtmlWithCompany(html: string, company: string, url: string): Date | null {
+  // Check for hardcoded dates first (before any extraction)
+  if (url === 'https://toss.tech/article/business-customer-data') {
+    return new Date(2025, 11, 9); // December 9, 2025
+  }
+
   const dateFromStructured = extractPublishDateFromHtml(html);
   if (dateFromStructured) {
     return dateFromStructured;
   }
 
-  const dateFromSelector = extractPublishDateWithSelector(html, company);
+  const dateFromSelector = extractPublishDateWithSelector(html, company, url);
   if (dateFromSelector) {
     return dateFromSelector;
   }
@@ -183,7 +188,7 @@ async function processPost(post: Post, stats: Statistics, dryRun: boolean): Prom
       return;
     }
 
-    const extractedDate = extractPublishDateFromHtmlWithCompany(html, post.company);
+    const extractedDate = extractPublishDateFromHtmlWithCompany(html, post.company, post.url);
     if (!extractedDate) {
       manualReviews.push({
         id: post.id,
