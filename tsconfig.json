@@ -3,10 +3,20 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@crawler/*": ["./crawler/src/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@crawler/*": [
+        "./crawler/src/*"
+      ]
     }
   },
-  "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist", "crawler"]
+  "include": [
+    ".astro/types.d.ts",
+    "**/*"
+  ],
+  "exclude": [
+    "dist",
+    "crawler"
+  ]
 }
