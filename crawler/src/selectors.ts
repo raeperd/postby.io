@@ -63,7 +63,24 @@ export function extractPublishDate(html: string, company: string, url?: string):
   }
 
   const $ = cheerio.load(html);
-  const element = $(selector.publishedDate);
+  let element = $(selector.publishedDate);
+
+  // Special case for kakao: try multiple selectors
+  if (company === 'kakao' && element.length === 0) {
+    // Try alternate nth-child
+    const baseSelector = '#__nuxt > div.container-doc > main > article > div.wrap_tit > div';
+    const altSelector = selector.publishedDate.includes('nth-child(3)')
+      ? baseSelector + ' > span:nth-child(2)'
+      : baseSelector + ' > span:nth-child(3)';
+    element = $(altSelector);
+
+    // If still not found, try data-v attribute pattern (for older posts without wrap_tit)
+    if (element.length === 0) {
+      element = $('span[data-v-c99b4e88]').filter(function() {
+        return /^\d{4}\.\d{2}\.\d{2}$/.test($(this).text().trim());
+      }).first();
+    }
+  }
 
   if (element.length === 0) {
     return null;
