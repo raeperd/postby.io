@@ -1,0 +1,198 @@
+{
+  "generatedAt": "2026-01-09T00:41:31.385Z",
+  "totalReviews": 24,
+  "posts": [
+    {
+      "id": "bd904bc6c59c0a4e7a71fc08dbb812d4c37b88f0",
+      "url": "https://toss.tech/article/business-customer-data",
+      "company": "toss",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/toss/bd904bc6c59c0a4e7a71fc08dbb812d4c37b88f0.json"
+    },
+    {
+      "id": "88fd2c258de31a6b4342eaf26b1800c71d9aea4b",
+      "url": "https://medium.com/daangn/%EB%A7%A4%EB%B2%88-%EB%8B%A4-%ED%8D%BC%EC%98%AC-%ED%95%84%EC%9A%94-%EC%97%86%EC%9E%96%EC%95%84-%EB%8B%B9%EA%B7%BC%EC%9D%98-mongodb-cdc-%EA%B5%AC%EC%B6%95%EA%B8%B0-302ae8a0dc23?source=rss----4505f82a2dbd---4",
+      "company": "daangn",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/daangn/88fd2c258de31a6b4342eaf26b1800c71d9aea4b.json"
+    },
+    {
+      "id": "db1611162242d4ccb28d71f1438bb76cc2f340bd",
+      "url": "https://tech.kakao.com/posts/801",
+      "company": "kakao",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/db1611162242d4ccb28d71f1438bb76cc2f340bd.json"
+    },
+    {
+      "id": "cf6e34b8a8e191b3160c02f8b9aae961d4f2f6a3",
+      "url": "https://tech.kakao.com/posts/802",
+      "company": "kakao",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/cf6e34b8a8e191b3160c02f8b9aae961d4f2f6a3.json"
+    },
+    {
+      "id": "e6689a4b72a30d56ab5e0c6b75f5654798d1f012",
+      "url": "https://tech.kakao.com/posts/803",
+      "company": "kakao",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/e6689a4b72a30d56ab5e0c6b75f5654798d1f012.json"
+    },
+    {
+      "id": "6c16dc0e91044c320f96bd2bc796f42395ea67d7",
+      "url": "https://tech.kakao.com/posts/797",
+      "company": "kakao",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/6c16dc0e91044c320f96bd2bc796f42395ea67d7.json"
+    },
+    {
+      "id": "735fa56cacbb39160e5c7768825e1827e1664511",
+      "url": "https://tech.kakao.com/posts/798",
+      "company": "kakao",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/735fa56cacbb39160e5c7768825e1827e1664511.json"
+    },
+    {
+      "id": "78e8eeed7fd3261f631f2d2696715824b104f937",
+      "url": "https://d2.naver.com/helloworld/0931890",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/78e8eeed7fd3261f631f2d2696715824b104f937.json"
+    },
+    {
+      "id": "5432ddb5418901531024ec72ab28e5481384ca29",
+      "url": "https://d2.naver.com/helloworld/7610642",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/5432ddb5418901531024ec72ab28e5481384ca29.json"
+    },
+    {
+      "id": "3c5935df500a8bbd9e87ff2df8b17595eb4db810",
+      "url": "https://d2.naver.com/helloworld/6388660",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/3c5935df500a8bbd9e87ff2df8b17595eb4db810.json"
+    },
+    {
+      "id": "eb8c80cd539fbedaac892d2d4249f7625f1cff95",
+      "url": "https://d2.naver.com/helloworld/3691494",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/eb8c80cd539fbedaac892d2d4249f7625f1cff95.json"
+    },
+    {
+      "id": "c6d1ec026e9ece93d9034e6cca5ed36f89c87176",
+      "url": "https://d2.naver.com/helloworld/0957098",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/c6d1ec026e9ece93d9034e6cca5ed36f89c87176.json"
+    },
+    {
+      "id": "4f53423140f1e5a2a1db776f7dc23d0a7eb632b9",
+      "url": "https://d2.naver.com/helloworld/8677833",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/4f53423140f1e5a2a1db776f7dc23d0a7eb632b9.json"
+    },
+    {
+      "id": "020a376732913bf0a4601f3ed518473132263b6c",
+      "url": "https://d2.naver.com/helloworld/1580651",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/020a376732913bf0a4601f3ed518473132263b6c.json"
+    },
+    {
+      "id": "15c269e92aa2194fcad178b802edb98997b48777",
+      "url": "https://d2.naver.com/helloworld/4199466",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/15c269e92aa2194fcad178b802edb98997b48777.json"
+    },
+    {
+      "id": "944a5176e0add4ec5c25503a531f0f7c0ec73556",
+      "url": "https://d2.naver.com/helloworld/1104856",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/944a5176e0add4ec5c25503a531f0f7c0ec73556.json"
+    },
+    {
+      "id": "7cade2e6eed9d191bf7cb1b04ca67010664454f3",
+      "url": "https://d2.naver.com/helloworld/9036125",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/7cade2e6eed9d191bf7cb1b04ca67010664454f3.json"
+    },
+    {
+      "id": "e6f085ae38b36a6a3a7daec0fc33a04248217e24",
+      "url": "https://d2.naver.com/helloworld/8992409",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/e6f085ae38b36a6a3a7daec0fc33a04248217e24.json"
+    },
+    {
+      "id": "d03522a7bd5776a32dd3434f21f63af89570bd74",
+      "url": "https://d2.naver.com/helloworld/4571155",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/d03522a7bd5776a32dd3434f21f63af89570bd74.json"
+    },
+    {
+      "id": "90a6e5c01090e06ba391c35187e7e90532555ece",
+      "url": "https://d2.naver.com/helloworld/2678553",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/90a6e5c01090e06ba391c35187e7e90532555ece.json"
+    },
+    {
+      "id": "e183313632bcf388da7fdb45b0659bf174c1111b",
+      "url": "https://d2.naver.com/helloworld/3974242",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/e183313632bcf388da7fdb45b0659bf174c1111b.json"
+    },
+    {
+      "id": "35b506e8b7174aa655d8d4a34133d2b049ff4a31",
+      "url": "https://d2.naver.com/helloworld/0004394",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/35b506e8b7174aa655d8d4a34133d2b049ff4a31.json"
+    },
+    {
+      "id": "4662ef525c9ccfa58bdfdf9c406777089da98a07",
+      "url": "https://d2.naver.com/helloworld/3442203",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/4662ef525c9ccfa58bdfdf9c406777089da98a07.json"
+    },
+    {
+      "id": "791e3c70f5855b28370437ea25cd8bd1ffd6c586",
+      "url": "https://d2.naver.com/helloworld/9290684",
+      "company": "naver",
+      "currentPublishedAt": "2026-01-07T11:53:29.000Z",
+      "reason": "extraction_failed",
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/791e3c70f5855b28370437ea25cd8bd1ffd6c586.json"
+    }
+  ]
+}
