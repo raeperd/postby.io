@@ -24,7 +24,8 @@ const allPosts = await db
   .orderBy(desc(posts.publishedAt));
 
 // Helper to format date in Korean locale
-const formatDate = (timestamp: Date) => {
+const formatDate = (timestamp: Date | null) => {
+  if (!timestamp) return null;
   return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
     month: 'long',
@@ -69,9 +70,11 @@ const companyBadgeVariants: Record<string, 'primary' | 'success' | 'warning' | '
                 >
                   {post.company}
                 </Badge>
-                <time class="text-sm text-gray-500" datetime={post.publishedAt.toISOString()}>
-                  {formatDate(post.publishedAt)}
-                </time>
+                {post.publishedAt && (
+                  <time class="text-sm text-gray-500" datetime={post.publishedAt.toISOString()}>
+                    {formatDate(post.publishedAt)}
+                  </time>
+                )}
               </div>
             </CardHeader>
 
