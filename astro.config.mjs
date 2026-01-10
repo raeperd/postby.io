@@ -13,7 +13,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
-        '@crawler': path.resolve(__dirname, './crawler/src'),
+        '@pipeline': path.resolve(__dirname, './pipeline/src'),
       },
     },
   },

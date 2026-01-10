@@ -2,12 +2,12 @@
 
 import fs from 'fs';
 import path from 'path';
-import { extractPublishDate } from '../crawler/src/selectors';
-import { type FirecrawlResponse } from '../crawler/src/db.js';
-import { COMPANIES } from '../crawler/src/scraper.js';
+import { extractPublishDate } from '../pipeline/src/selectors';
+import { type FirecrawlResponse } from '../pipeline/src/db.js';
+import { COMPANIES } from '../pipeline/src/scraper.js';
 
 function testCompany(company: string): void {
-  const dataDir = path.join(process.cwd(), 'crawler/data/firecrawl', company);
+  const dataDir = path.join(process.cwd(), 'pipeline/data/firecrawl', company);
 
   if (!fs.existsSync(dataDir)) {
     console.log(`  ⊘ No data directory for ${company}`);

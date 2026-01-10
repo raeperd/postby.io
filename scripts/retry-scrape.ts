@@ -2,13 +2,13 @@ import Firecrawl from '@mendable/firecrawl-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { urlToId } from '../crawler/src/db.js';
-import { withTimeout } from '../crawler/src/scraper.js';
+import { urlToId } from '../pipeline/src/db.js';
+import { withTimeout } from '../pipeline/src/scraper.js';
 
-dotenv.config({ path: path.join(process.cwd(), 'crawler', '.env') });
+dotenv.config({ path: path.join(process.cwd(), 'pipeline', '.env') });
 
 if (!process.env.FIRECRAWL_API_KEY) {
-  throw new Error('FIRECRAWL_API_KEY not found in environment. Check crawler/.env file.');
+  throw new Error('FIRECRAWL_API_KEY not found in environment. Check pipeline/.env file.');
 }
 
 const firecrawl = new Firecrawl({
@@ -29,7 +29,7 @@ function getCompanyFromUrl(url: string): string {
 async function retryUrl(url: string, forceOverwrite: boolean = false): Promise<void> {
   const company = getCompanyFromUrl(url);
   const id = urlToId(url);
-  const outputDir = path.join(process.cwd(), 'crawler', 'data', 'firecrawl', company);
+  const outputDir = path.join(process.cwd(), 'pipeline', 'data', 'firecrawl', company);
   const outputPath = path.join(outputDir, `${id}.json`);
 
   fs.mkdirSync(outputDir, { recursive: true });
