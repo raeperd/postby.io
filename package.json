@@ -17,7 +17,7 @@
     "@tabler/icons": "^3.36.1",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/vite": "^4.1.18",
-    "astro": "^5.11.0",
+    "astro": "^5.16.8",
     "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",
     "tailwind-merge": "^3.4.0",
