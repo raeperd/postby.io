@@ -162,7 +162,6 @@ export async function scrapeCompany(company: string, concurrency: number = 5): P
 }
 
 export async function scrapeAll(): Promise<void> {
-
   console.log('\n' + '='.repeat(60));
   console.log('Starting scrape for ALL companies');
   console.log('='.repeat(60));
