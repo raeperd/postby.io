@@ -3,10 +3,9 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { db, posts, type InsertPost, type FirecrawlResponse } from './db';
+import { db, posts, type InsertPost, type FirecrawlResponse, urlToId } from './db';
 import { eq } from 'drizzle-orm';
 import { extractPublishDate } from './selectors';
-import { urlToId } from '../../src/lib/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,6 +20,9 @@ const firecrawl = new Firecrawl({
   apiKey: process.env.FIRECRAWL_API_KEY,
 });
 
+export const COMPANIES = ['toss', 'coupang', 'daangn', 'kakao', 'naver', 'line', 'woowahan'] as const;
+export type Company = (typeof COMPANIES)[number];
+
 function loadUrls(company: string): string[] {
   const urlsPath = path.join(__dirname, '..', 'data', 'urls', `${company}.txt`);
   if (!fs.existsSync(urlsPath)) {
@@ -30,7 +32,7 @@ function loadUrls(company: string): string[] {
   return content.split('\n').filter(line => line.trim());
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: string): Promise<T> {
+export function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: string): Promise<T> {
   let timeoutId: NodeJS.Timeout;
   const timeoutPromise = new Promise<T>((_, reject) => {
     timeoutId = setTimeout(() => reject(new Error(timeoutError)), timeoutMs);
@@ -77,7 +79,15 @@ async function scrapeUrl(
       url,
       company,
       scrapedAt: new Date().toISOString(),
-      ...result,
+      markdown: result.markdown ?? '',
+      summary: result.summary ?? '',
+      links: result.links ?? [],
+      rawHtml: result.rawHtml ?? '',
+      metadata: {
+        title: result.metadata?.title ?? 'Untitled',
+        language: result.metadata?.language,
+        statusCode: result.metadata?.statusCode,
+      },
     };
 
     // Write to file (backup)
@@ -111,7 +121,7 @@ async function scrapeUrl(
   }
 }
 
-async function processBatch<T>(
+export async function processBatch<T>(
   items: T[],
   batchSize: number,
   processor: (item: T, index: number) => Promise<any>
@@ -152,13 +162,11 @@ export async function scrapeCompany(company: string, concurrency: number = 5): P
 }
 
 export async function scrapeAll(): Promise<void> {
-  const companies = ['toss', 'coupang', 'daangn', 'kakao', 'naver', 'line', 'woowahan'];
-
   console.log('\n' + '='.repeat(60));
   console.log('Starting scrape for ALL companies');
   console.log('='.repeat(60));
 
-  for (const company of companies) {
+  for (const company of COMPANIES) {
     await scrapeCompany(company);
   }
 

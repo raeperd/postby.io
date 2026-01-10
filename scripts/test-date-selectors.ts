@@ -3,17 +3,8 @@
 import fs from 'fs';
 import path from 'path';
 import { extractPublishDate } from '../crawler/src/selectors';
-
-interface FirecrawlResponse {
-  url: string;
-  company: string;
-  rawHtml: string;
-  metadata: {
-    title: string;
-  };
-}
-
-const COMPANIES = ['toss', 'coupang', 'daangn', 'kakao', 'naver', 'line', 'woowahan'];
+import { type FirecrawlResponse } from '../crawler/src/db.js';
+import { COMPANIES } from '../crawler/src/scraper.js';
 
 function testCompany(company: string): void {
   const dataDir = path.join(process.cwd(), 'crawler/data/firecrawl', company);
