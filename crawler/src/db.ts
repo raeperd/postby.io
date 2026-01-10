@@ -2,8 +2,17 @@ import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
-import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
-import { z } from 'zod';
+import { createHash } from 'node:crypto';
+
+/**
+ * Generate SHA-1 hash ID from URL
+ * Removes https:// prefix before hashing
+ * Returns 40-character hex string
+ */
+export function urlToId(url: string): string {
+  const withoutScheme = url.replace(/^https?:\/\//, '');
+  return createHash('sha1').update(withoutScheme).digest('hex');
+}
 
 export interface FirecrawlResponse {
   url: string;
@@ -60,17 +69,6 @@ const client = createClient({
 });
 
 export const db = drizzle(client, { schema: { posts } });
-
-export const selectPostSchema = createSelectSchema(posts);
-
-export const insertPostSchema = createInsertSchema(posts, {
-  id: z.string().min(1, 'ID is required'),
-  url: z.url({ message: 'Must be a valid URL' }),
-  title: z.string().min(1, 'Title is required').max(500, 'Title too long'),
-  content: z.string().min(1, 'Content is required'),
-  tags: z.array(z.string()).default([]),
-  company: z.string().min(1, 'Company is required'),
-});
 
 export type Post = typeof posts.$inferSelect;
 export type InsertPost = typeof posts.$inferInsert;

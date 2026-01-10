@@ -2,7 +2,8 @@ import Firecrawl from '@mendable/firecrawl-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { urlToId } from '../crawler/src/cache.js';
+import { urlToId } from '../crawler/src/db.js';
+import { withTimeout } from '../crawler/src/scraper.js';
 
 dotenv.config({ path: path.join(process.cwd(), 'crawler', '.env') });
 
@@ -23,17 +24,6 @@ function getCompanyFromUrl(url: string): string {
   if (url.includes('techblog.lycorp.co.jp')) return 'line';
   if (url.includes('techblog.woowahan.com')) return 'woowahan';
   throw new Error(`Unknown company for URL: ${url}`);
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: string): Promise<T> {
-  let timeoutId: NodeJS.Timeout;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(timeoutError)), timeoutMs);
-  });
-
-  return Promise.race([promise, timeoutPromise]).finally(() => {
-    clearTimeout(timeoutId);
-  });
 }
 
 async function retryUrl(url: string, forceOverwrite: boolean = false): Promise<void> {
@@ -123,7 +113,7 @@ async function main(): Promise<void> {
     try {
       await retryUrl(url, forceOverwrite);
       succeeded++;
-    } catch (error) {
+    } catch {
       failed++;
     }
   }
