@@ -8,7 +8,7 @@
       "company": "toss",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/toss/bd904bc6c59c0a4e7a71fc08dbb812d4c37b88f0.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/toss/bd904bc6c59c0a4e7a71fc08dbb812d4c37b88f0.json"
     },
     {
       "id": "88fd2c258de31a6b4342eaf26b1800c71d9aea4b",
@@ -16,7 +16,7 @@
       "company": "daangn",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/daangn/88fd2c258de31a6b4342eaf26b1800c71d9aea4b.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/daangn/88fd2c258de31a6b4342eaf26b1800c71d9aea4b.json"
     },
     {
       "id": "db1611162242d4ccb28d71f1438bb76cc2f340bd",
@@ -24,7 +24,7 @@
       "company": "kakao",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/db1611162242d4ccb28d71f1438bb76cc2f340bd.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/kakao/db1611162242d4ccb28d71f1438bb76cc2f340bd.json"
     },
     {
       "id": "cf6e34b8a8e191b3160c02f8b9aae961d4f2f6a3",
@@ -32,7 +32,7 @@
       "company": "kakao",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/cf6e34b8a8e191b3160c02f8b9aae961d4f2f6a3.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/kakao/cf6e34b8a8e191b3160c02f8b9aae961d4f2f6a3.json"
     },
     {
       "id": "e6689a4b72a30d56ab5e0c6b75f5654798d1f012",
@@ -40,7 +40,7 @@
       "company": "kakao",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/e6689a4b72a30d56ab5e0c6b75f5654798d1f012.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/kakao/e6689a4b72a30d56ab5e0c6b75f5654798d1f012.json"
     },
     {
       "id": "6c16dc0e91044c320f96bd2bc796f42395ea67d7",
@@ -48,7 +48,7 @@
       "company": "kakao",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/6c16dc0e91044c320f96bd2bc796f42395ea67d7.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/kakao/6c16dc0e91044c320f96bd2bc796f42395ea67d7.json"
     },
     {
       "id": "735fa56cacbb39160e5c7768825e1827e1664511",
@@ -56,7 +56,7 @@
       "company": "kakao",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/kakao/735fa56cacbb39160e5c7768825e1827e1664511.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/kakao/735fa56cacbb39160e5c7768825e1827e1664511.json"
     },
     {
       "id": "78e8eeed7fd3261f631f2d2696715824b104f937",
@@ -64,7 +64,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/78e8eeed7fd3261f631f2d2696715824b104f937.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/78e8eeed7fd3261f631f2d2696715824b104f937.json"
     },
     {
       "id": "5432ddb5418901531024ec72ab28e5481384ca29",
@@ -72,7 +72,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/5432ddb5418901531024ec72ab28e5481384ca29.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/5432ddb5418901531024ec72ab28e5481384ca29.json"
     },
     {
       "id": "3c5935df500a8bbd9e87ff2df8b17595eb4db810",
@@ -80,7 +80,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/3c5935df500a8bbd9e87ff2df8b17595eb4db810.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/3c5935df500a8bbd9e87ff2df8b17595eb4db810.json"
     },
     {
       "id": "eb8c80cd539fbedaac892d2d4249f7625f1cff95",
@@ -88,7 +88,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/eb8c80cd539fbedaac892d2d4249f7625f1cff95.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/eb8c80cd539fbedaac892d2d4249f7625f1cff95.json"
     },
     {
       "id": "c6d1ec026e9ece93d9034e6cca5ed36f89c87176",
@@ -96,7 +96,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/c6d1ec026e9ece93d9034e6cca5ed36f89c87176.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/c6d1ec026e9ece93d9034e6cca5ed36f89c87176.json"
     },
     {
       "id": "4f53423140f1e5a2a1db776f7dc23d0a7eb632b9",
@@ -104,7 +104,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/4f53423140f1e5a2a1db776f7dc23d0a7eb632b9.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/4f53423140f1e5a2a1db776f7dc23d0a7eb632b9.json"
     },
     {
       "id": "020a376732913bf0a4601f3ed518473132263b6c",
@@ -112,7 +112,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/020a376732913bf0a4601f3ed518473132263b6c.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/020a376732913bf0a4601f3ed518473132263b6c.json"
     },
     {
       "id": "15c269e92aa2194fcad178b802edb98997b48777",
@@ -120,7 +120,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/15c269e92aa2194fcad178b802edb98997b48777.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/15c269e92aa2194fcad178b802edb98997b48777.json"
     },
     {
       "id": "944a5176e0add4ec5c25503a531f0f7c0ec73556",
@@ -128,7 +128,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/944a5176e0add4ec5c25503a531f0f7c0ec73556.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/944a5176e0add4ec5c25503a531f0f7c0ec73556.json"
     },
     {
       "id": "7cade2e6eed9d191bf7cb1b04ca67010664454f3",
@@ -136,7 +136,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/7cade2e6eed9d191bf7cb1b04ca67010664454f3.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/7cade2e6eed9d191bf7cb1b04ca67010664454f3.json"
     },
     {
       "id": "e6f085ae38b36a6a3a7daec0fc33a04248217e24",
@@ -144,7 +144,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/e6f085ae38b36a6a3a7daec0fc33a04248217e24.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/e6f085ae38b36a6a3a7daec0fc33a04248217e24.json"
     },
     {
       "id": "d03522a7bd5776a32dd3434f21f63af89570bd74",
@@ -152,7 +152,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/d03522a7bd5776a32dd3434f21f63af89570bd74.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/d03522a7bd5776a32dd3434f21f63af89570bd74.json"
     },
     {
       "id": "90a6e5c01090e06ba391c35187e7e90532555ece",
@@ -160,7 +160,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/90a6e5c01090e06ba391c35187e7e90532555ece.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/90a6e5c01090e06ba391c35187e7e90532555ece.json"
     },
     {
       "id": "e183313632bcf388da7fdb45b0659bf174c1111b",
@@ -168,7 +168,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/e183313632bcf388da7fdb45b0659bf174c1111b.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/e183313632bcf388da7fdb45b0659bf174c1111b.json"
     },
     {
       "id": "35b506e8b7174aa655d8d4a34133d2b049ff4a31",
@@ -176,7 +176,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/35b506e8b7174aa655d8d4a34133d2b049ff4a31.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/35b506e8b7174aa655d8d4a34133d2b049ff4a31.json"
     },
     {
       "id": "4662ef525c9ccfa58bdfdf9c406777089da98a07",
@@ -184,7 +184,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/4662ef525c9ccfa58bdfdf9c406777089da98a07.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/4662ef525c9ccfa58bdfdf9c406777089da98a07.json"
     },
     {
       "id": "791e3c70f5855b28370437ea25cd8bd1ffd6c586",
@@ -192,7 +192,7 @@
       "company": "naver",
       "currentPublishedAt": "2026-01-07T11:53:29.000Z",
       "reason": "extraction_failed",
-      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/crawler/data/firecrawl/naver/791e3c70f5855b28370437ea25cd8bd1ffd6c586.json"
+      "firecrawlPath": "/Users/raeperd/Codes/raeperd/postby.io/pipeline/data/firecrawl/naver/791e3c70f5855b28370437ea25cd8bd1ffd6c586.json"
     }
   ]
 }
