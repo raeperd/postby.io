@@ -2,10 +2,10 @@ import Firecrawl from '@mendable/firecrawl-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { urlToId } from '../crawler/src/db.js';
+import { urlToId } from '../pipeline/src/db.js';
 
-// Load .env from crawler directory
-dotenv.config({ path: path.join(process.cwd(), 'crawler', '.env') });
+// Load .env from pipeline directory
+dotenv.config({ path: path.join(process.cwd(), 'pipeline', '.env') });
 
 const firecrawl = new Firecrawl({
   apiKey: process.env.FIRECRAWL_API_KEY,
@@ -36,7 +36,7 @@ async function testScrape(url: string): Promise<void> {
 
     // Save full response to JSON file
     const id = urlToId(url);
-    const outputDir = path.join(process.cwd(), 'crawler', 'data', 'firecrawl');
+    const outputDir = path.join(process.cwd(), 'pipeline', 'data', 'firecrawl');
     fs.mkdirSync(outputDir, { recursive: true });
 
     const outputPath = path.join(outputDir, `${id}.json`);

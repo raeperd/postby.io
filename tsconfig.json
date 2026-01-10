@@ -6,8 +6,8 @@
       "@/*": [
         "src/*"
       ],
-      "@crawler/*": [
-        "./crawler/src/*"
+      "@pipeline/*": [
+        "./pipeline/src/*"
       ]
     }
   },
@@ -17,6 +17,6 @@
   ],
   "exclude": [
     "dist",
-    "crawler"
+    "pipeline"
   ]
 }

@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 if (!process.env.FIRECRAWL_API_KEY) {
-  throw new Error('FIRECRAWL_API_KEY not found in environment. Check crawler/.env file.');
+  throw new Error('FIRECRAWL_API_KEY not found in environment. Check pipeline/.env file.');
 }
 
 const firecrawl = new Firecrawl({

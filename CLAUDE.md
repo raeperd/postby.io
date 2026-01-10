@@ -7,12 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A curation service for tech company engineering blog posts. The project consists of two main components:
 
 1. **Frontend** - Astro-based static site for content display
-2. **Crawler** - Node.js/TypeScript tool for discovering and scraping blog posts from Korean tech companies
+2. **Pipeline** - Node.js/TypeScript tool for discovering and scraping blog posts from Korean tech companies
 
 ## Tech Stack
 
 - **Frontend**: Astro 5.x, Tailwind CSS v4, TypeScript
-- **Crawler**: Node.js, TypeScript, Drizzle ORM, SQLite (LibSQL), Firecrawl API, Cheerio
+- **Pipeline**: Node.js, TypeScript, Drizzle ORM, SQLite (LibSQL), Firecrawl API, Cheerio
 - **Package Manager**: pnpm (v10.11.1)
 - **Code Quality**: ESLint, Prettier
 
@@ -37,12 +37,12 @@ pnpm format        # Format code with Prettier
 pnpm format:check  # Check formatting without changes
 ```
 
-### Crawler Development
+### Pipeline Development
 
 ```bash
-cd crawler
+cd pipeline
 
-# Run crawler commands
+# Run pipeline commands
 pnpm start discover <company>  # Discover post URLs from RSS/list pages
 pnpm start scrape <company>    # Scrape articles using Firecrawl API
 pnpm start scrape-all          # Scrape all companies
@@ -65,26 +65,26 @@ pnpm format       # Prettier formatting
 
 ## Architecture
 
-### Crawler Architecture
+### Pipeline Architecture
 
-The crawler operates in two phases:
+The pipeline operates in two phases:
 
 1. **Discovery Phase** (`discover` command)
    - Crawls blog list pages to discover article URLs
-   - Uses company-specific parsing rules defined in `crawler/src/rules.ts`
+   - Uses company-specific parsing rules defined in `pipeline/src/rules.ts`
    - Supports pagination with configurable selectors
-   - Stores discovered URLs in `crawler/data/urls/<company>.txt`
+   - Stores discovered URLs in `pipeline/data/urls/<company>.txt`
 
 2. **Scraping Phase** (`scrape` command)
    - Reads URLs from `data/urls/<company>.txt`
    - Uses Firecrawl API to extract article content, metadata, and publish dates
-   - Stores raw scraped data as JSON files in `crawler/data/firecrawl/<company>/`
+   - Stores raw scraped data as JSON files in `pipeline/data/firecrawl/<company>/`
    - Generates URL-based IDs using SHA-1 hash (40 hex characters)
    - Skips already-scraped URLs automatically
 
 ### Database Schema
 
-Located in `crawler/src/db.ts`. Uses Drizzle ORM with LibSQL (SQLite).
+Located in `pipeline/src/db.ts`. Uses Drizzle ORM with LibSQL (SQLite).
 
 **Posts Table**:
 - `id`: Text primary key (SHA-1 hash of URL, 40 hex characters)
@@ -100,7 +100,7 @@ Indexes on: `url`, `company`, `status`, `publishedAt`
 
 ### Parsing Rules System
 
-Each company has a `ParsingRule` defined in `crawler/src/rules.ts`:
+Each company has a `ParsingRule` defined in `pipeline/src/rules.ts`:
 
 ```typescript
 {
@@ -121,18 +121,18 @@ Each company has a `ParsingRule` defined in `crawler/src/rules.ts`:
 
 ### Key Modules
 
-- `crawler/src/index.ts` - Main entry point with CLI commands
-- `crawler/src/scraper.ts` - Firecrawl integration for content extraction
-- `crawler/src/fetcher.ts` - HTTP fetching wrapper
-- `crawler/src/parser.ts` - HTML parsing logic (TODO: implement Cheerio-based parsing)
-- `crawler/src/cache.ts` - File-based HTML caching system with URL encoding
-- `crawler/src/db.ts` - Database schema and Zod validation schemas
-- `crawler/src/rules.ts` - Company-specific parsing rules
+- `pipeline/src/index.ts` - Main entry point with CLI commands
+- `pipeline/src/scraper.ts` - Firecrawl integration for content extraction
+- `pipeline/src/fetcher.ts` - HTTP fetching wrapper
+- `pipeline/src/parser.ts` - HTML parsing logic (TODO: implement Cheerio-based parsing)
+- `pipeline/src/cache.ts` - File-based HTML caching system with URL encoding
+- `pipeline/src/db.ts` - Database schema and Zod validation schemas
+- `pipeline/src/rules.ts` - Company-specific parsing rules
 
 ### Data Directory Structure
 
 ```
-crawler/data/
+pipeline/data/
 ├── urls/              # Discovered URLs (one file per company)
 │   ├── toss.txt
 │   ├── coupang.txt
@@ -149,7 +149,7 @@ crawler/data/
 
 ### Environment Configuration
 
-Requires `.env` file in `crawler/` directory:
+Requires `.env` file in `pipeline/` directory:
 
 ```bash
 FIRECRAWL_API_KEY=<your-api-key>
@@ -169,14 +169,14 @@ FIRECRAWL_API_KEY=<your-api-key>
 
 ### Adding a New Company
 
-1. Add a new rule to `crawler/src/rules.ts` with appropriate selectors
+1. Add a new rule to `pipeline/src/rules.ts` with appropriate selectors
 2. Run discovery: `pnpm start discover <company>`
 3. Review discovered URLs in `data/urls/<company>.txt`
 4. Run scraper: `pnpm start scrape <company>`
 
 ### Cache System
 
-The crawler includes a file-based caching system (`cache.ts`):
+The pipeline includes a file-based caching system (`cache.ts`):
 - URLs are hashed to SHA-1 IDs (without scheme, 40 hex characters)
 - Cache files stored in `data/html/<hostname>/<id>.html`
 - Helper functions: `urlToId()`, `getCachePath()`, `readCache()`, `writeCache()`
@@ -186,7 +186,7 @@ The crawler includes a file-based caching system (`cache.ts`):
 - Drizzle schema exports Zod validation schemas
 - `insertPostSchema` - Validates data before DB insertion
 - `selectPostSchema` - Type-safe query results
-- TypeScript strict mode enabled in both frontend and crawler
+- TypeScript strict mode enabled in both frontend and pipeline
 
 ### Scripts Directory
 
