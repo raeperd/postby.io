@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Format check
+        run: pnpm --filter @postby/pipeline format:check
+
       - name: Type check
         run: pnpm --filter @postby/pipeline type-check
 
