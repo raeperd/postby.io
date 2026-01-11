@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "build": "tsc",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
@@ -27,11 +28,13 @@
     "prettier": "^3.6.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.52.0"
+    "typescript-eslint": "^8.52.0",
+    "vitest": "^3.1.4"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",
     "@mendable/firecrawl-js": "^4.10.0",
+    "cheerio": "^1.1.2",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "zod": "^4.3.5"
