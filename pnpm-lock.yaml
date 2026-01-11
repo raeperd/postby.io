@@ -51,6 +51,9 @@ importers:
       '@mendable/firecrawl-js':
         specifier: ^4.10.0
         version: 4.10.0
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.0.3
       cheerio:
         specifier: ^1.1.2
         version: 1.1.2
@@ -75,6 +78,9 @@ importers:
       prettier-plugin-tailwindcss:
         specifier: ^0.7.2
         version: 0.7.2(prettier-plugin-astro@0.14.1)(prettier@3.7.4)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
       typescript-eslint:
         specifier: ^8.52.0
         version: 8.52.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
