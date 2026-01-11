@@ -76,9 +76,11 @@ export function extractPublishDate(html: string, company: string, url?: string):
 
     // If still not found, try data-v attribute pattern (for older posts without wrap_tit)
     if (element.length === 0) {
-      element = $('span[data-v-c99b4e88]').filter(function() {
-        return /^\d{4}\.\d{2}\.\d{2}$/.test($(this).text().trim());
-      }).first();
+      element = $('span[data-v-c99b4e88]')
+        .filter(function () {
+          return /^\d{4}\.\d{2}\.\d{2}$/.test($(this).text().trim());
+        })
+        .first();
     }
   }
 

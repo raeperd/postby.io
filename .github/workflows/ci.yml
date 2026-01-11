@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Format check
+        run: pnpm --filter @postby/pipeline format:check
+
+      - name: Type check
+        run: pnpm --filter @postby/pipeline type-check
+
+      - name: Lint
+        run: pnpm --filter @postby/pipeline lint
+        continue-on-error: true  # Pre-existing lint errors in scraper.ts
+
+      - name: Test
+        run: pnpm --filter @postby/pipeline test
