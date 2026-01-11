@@ -79,6 +79,12 @@ const companyBorderColors: Record<string, string> = {
           >
             <!-- Meta row -->
             <div class="mb-2 flex items-center gap-2">
+              <img
+                src={`/favicons/${post.company}.png`}
+                alt=""
+                class="h-4 w-4"
+                loading="lazy"
+              />
               <Badge
                 variant={companyBadgeVariants[post.company] || 'default'}
                 size="sm"
