@@ -100,37 +100,27 @@
       "indexes": {
         "posts_url_unique": {
           "name": "posts_url_unique",
-          "columns": [
-            "url"
-          ],
+          "columns": ["url"],
           "isUnique": true
         },
         "url_idx": {
           "name": "url_idx",
-          "columns": [
-            "url"
-          ],
+          "columns": ["url"],
           "isUnique": false
         },
         "company_idx": {
           "name": "company_idx",
-          "columns": [
-            "company"
-          ],
+          "columns": ["company"],
           "isUnique": false
         },
         "status_idx": {
           "name": "status_idx",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         },
         "published_at_idx": {
           "name": "published_at_idx",
-          "columns": [
-            "published_at"
-          ],
+          "columns": ["published_at"],
           "isUnique": false
         }
       },

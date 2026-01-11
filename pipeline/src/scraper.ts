@@ -91,11 +91,7 @@ async function scrapeUrl(
     };
 
     // Write to file (backup)
-    fs.writeFileSync(
-      outputPath,
-      JSON.stringify(firecrawlData, null, 2),
-      'utf-8'
-    );
+    fs.writeFileSync(outputPath, JSON.stringify(firecrawlData, null, 2), 'utf-8');
 
     // Write to database
     const publishedAt = extractPublishDate(firecrawlData.rawHtml, company, url) || new Date();

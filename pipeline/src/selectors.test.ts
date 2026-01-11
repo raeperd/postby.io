@@ -3,15 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db, posts } from './db';
 import { extractPublishDate } from './selectors';
 
-const COMPANIES = [
-  'toss',
-  'coupang',
-  'daangn',
-  'kakao',
-  'naver',
-  'line',
-  'woowahan',
-] as const;
+const COMPANIES = ['toss', 'coupang', 'daangn', 'kakao', 'naver', 'line', 'woowahan'] as const;
 
 // LINE posts use a different HTML structure that the current selector doesn't handle.
 // TODO: Fix LINE selector in selectors.ts to handle the new HTML structure.
@@ -40,12 +32,8 @@ describe('extractPublishDate', () => {
     }
 
     if (failures.length > 0) {
-      const failureReport = failures
-        .map((f) => `  - [${f.company}] ${f.url}`)
-        .join('\n');
-      expect.fail(
-        `${failures.length} posts failed date extraction:\n${failureReport}`
-      );
+      const failureReport = failures.map(f => `  - [${f.company}] ${f.url}`).join('\n');
+      expect.fail(`${failures.length} posts failed date extraction:\n${failureReport}`);
     }
   });
 
@@ -57,10 +45,7 @@ describe('extractPublishDate', () => {
     }
 
     it(`should extract dates for all ${company} posts`, async () => {
-      const companyPosts = await db
-        .select()
-        .from(posts)
-        .where(eq(posts.company, company));
+      const companyPosts = await db.select().from(posts).where(eq(posts.company, company));
 
       if (companyPosts.length === 0) {
         return;

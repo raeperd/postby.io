@@ -18,9 +18,7 @@ describe('posts validation', () => {
     }
 
     if (failures.length > 0) {
-      expect.fail(
-        `${failures.length} posts have empty title:\n${failures.map((u) => `  - ${u}`).join('\n')}`
-      );
+      expect.fail(`${failures.length} posts have empty title:\n${failures.map(u => `  - ${u}`).join('\n')}`);
     }
   });
 
@@ -35,9 +33,7 @@ describe('posts validation', () => {
     }
 
     if (failures.length > 0) {
-      expect.fail(
-        `${failures.length} posts have empty content:\n${failures.map((u) => `  - ${u}`).join('\n')}`
-      );
+      expect.fail(`${failures.length} posts have empty content:\n${failures.map(u => `  - ${u}`).join('\n')}`);
     }
   });
 
@@ -65,7 +61,7 @@ describe('posts validation', () => {
 
     if (failures.length > 0) {
       expect.fail(
-        `${failures.length} posts have invalid firecrawlData:\n${failures.map((f) => `  - ${f.url}: ${f.reason}`).join('\n')}`
+        `${failures.length} posts have invalid firecrawlData:\n${failures.map(f => `  - ${f.url}: ${f.reason}`).join('\n')}`
       );
     }
   });

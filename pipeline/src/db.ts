@@ -52,9 +52,7 @@ export const posts = sqliteTable(
     status: text('status', { enum: ['pending', 'success', 'failed'] })
       .notNull()
       .default('pending'),
-    firecrawlData: text('firecrawl_data', { mode: 'json' })
-      .$type<FirecrawlResponse>()
-      .notNull(),
+    firecrawlData: text('firecrawl_data', { mode: 'json' }).$type<FirecrawlResponse>().notNull(),
   },
   table => [
     index('url_idx').on(table.url),

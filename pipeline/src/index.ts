@@ -24,7 +24,7 @@ async function main(): Promise<void> {
       console.error('Usage: tsx src/index.ts scrape <company>');
       process.exit(1);
     }
-    if (!COMPANIES.includes(company as typeof COMPANIES[number])) {
+    if (!COMPANIES.includes(company as (typeof COMPANIES)[number])) {
       console.error(`Unknown company: ${company}`);
       console.error('Available companies: ' + COMPANIES.join(', '));
       process.exit(1);
